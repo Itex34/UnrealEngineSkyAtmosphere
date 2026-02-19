@@ -89,7 +89,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;IMGUI_IMPL_OPENGL_LOADER_GLAD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
     </ClCompile>
     <Link>
@@ -103,7 +103,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions);IMGUI_DISABLE_OBSOLETE_FUNCTIONS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;IMGUI_IMPL_OPENGL_LOADER_GLAD;%(PreprocessorDefinitions);IMGUI_DISABLE_OBSOLETE_FUNCTIONS</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)imgui;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -122,7 +122,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;IMGUI_IMPL_OPENGL_LOADER_GLAD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
     </ClCompile>
     <Link>
@@ -140,7 +140,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions);IMGUI_DISABLE_OBSOLETE_FUNCTIONS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;IMGUI_IMPL_OPENGL_LOADER_GLAD;%(PreprocessorDefinitions);IMGUI_DISABLE_OBSOLETE_FUNCTIONS</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <ObjectFileName>$(IntDir)</ObjectFileName>
@@ -160,6 +160,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\imgui\examples\imgui_impl_dx11.cpp" />
+    <ClCompile Include="..\imgui\examples\imgui_impl_glfw.cpp" />
+    <ClCompile Include="..\imgui\examples\imgui_impl_opengl3.cpp" />
     <ClCompile Include="..\imgui\examples\imgui_impl_win32.cpp" />
     <ClCompile Include="..\imgui\imgui.cpp" />
     <ClCompile Include="..\imgui\imgui_demo.cpp" />
@@ -167,15 +169,19 @@
     <ClCompile Include="..\imgui\imgui_widgets.cpp" />
     <ClCompile Include="DataRecord.cpp" />
     <ClCompile Include="Game.cpp" />
+    <ClCompile Include="GameGl.cpp" />
     <ClCompile Include="GpuDebugRenderer.cpp" />
     <ClCompile Include="RenderSky.cpp" />
     <ClCompile Include="RenderTerrain.cpp" />
     <ClCompile Include="RenderWithLuts.cpp" />
     <ClCompile Include="SkyAtmosphereCommon.cpp" />
     <ClCompile Include="WinMain.cpp" />
+    <ClCompile Include="WinMainGlfw.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\imgui\examples\imgui_impl_dx11.h" />
+    <ClInclude Include="..\imgui\examples\imgui_impl_glfw.h" />
+    <ClInclude Include="..\imgui\examples\imgui_impl_opengl3.h" />
     <ClInclude Include="..\imgui\examples\imgui_impl_win32.h" />
     <ClInclude Include="..\imgui\imconfig.h" />
     <ClInclude Include="..\imgui\imgui.h" />
@@ -183,7 +189,9 @@
     <ClInclude Include="..\imgui\stb_rect_pack.h" />
     <ClInclude Include="..\imgui\stb_textedit.h" />
     <ClInclude Include="..\imgui\stb_truetype.h" />
+    <ClInclude Include="BuildConfig.h" />
     <ClInclude Include="Game.h" />
+    <ClInclude Include="GameGl.h" />
     <ClInclude Include="GpuDebugRenderer.h" />
     <ClInclude Include="SkyAtmosphereCommon.h" />
   </ItemGroup>
@@ -272,6 +280,12 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>
+    <None Include="..\Resources\glsl\fullscreen_triangle.vert" />
+    <None Include="..\Resources\glsl\render_raymarching_hillaire.frag" />
+    <None Include="..\Resources\glsl\render_sky_from_lut.frag" />
+    <None Include="..\Resources\glsl\present_transmittance.frag" />
+    <None Include="..\Resources\glsl\skyview_lut.frag" />
+    <None Include="..\Resources\glsl\transmittance_lut.frag" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

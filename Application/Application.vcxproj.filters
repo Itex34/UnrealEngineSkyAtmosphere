@@ -38,6 +38,12 @@
     <ClCompile Include="..\imgui\examples\imgui_impl_dx11.cpp">
       <Filter>Imgui</Filter>
     </ClCompile>
+    <ClCompile Include="..\imgui\examples\imgui_impl_glfw.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imgui\examples\imgui_impl_opengl3.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
     <ClCompile Include="..\imgui\examples\imgui_impl_win32.cpp">
       <Filter>Imgui</Filter>
     </ClCompile>
@@ -60,6 +66,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RenderSky.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GameGl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WinMainGlfw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -88,8 +100,20 @@
     <ClInclude Include="..\imgui\examples\imgui_impl_dx11.h">
       <Filter>Imgui</Filter>
     </ClInclude>
+    <ClInclude Include="..\imgui\examples\imgui_impl_glfw.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\imgui\examples\imgui_impl_opengl3.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
     <ClInclude Include="..\imgui\examples\imgui_impl_win32.h">
       <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="BuildConfig.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameGl.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="SkyAtmosphereCommon.h">
       <Filter>Source Files</Filter>
@@ -160,6 +184,24 @@
     </None>
     <None Include="..\Resources\Bruneton17\functions.glsl">
       <Filter>HLSL\Bruneton17</Filter>
+    </None>
+    <None Include="..\Resources\glsl\fullscreen_triangle.vert">
+      <Filter>HLSL</Filter>
+    </None>
+    <None Include="..\Resources\glsl\present_transmittance.frag">
+      <Filter>HLSL</Filter>
+    </None>
+    <None Include="..\Resources\glsl\render_sky_from_lut.frag">
+      <Filter>HLSL</Filter>
+    </None>
+    <None Include="..\Resources\glsl\render_raymarching_hillaire.frag">
+      <Filter>HLSL</Filter>
+    </None>
+    <None Include="..\Resources\glsl\skyview_lut.frag">
+      <Filter>HLSL</Filter>
+    </None>
+    <None Include="..\Resources\glsl\transmittance_lut.frag">
+      <Filter>HLSL</Filter>
     </None>
   </ItemGroup>
 </Project>

@@ -3,10 +3,10 @@
 
 #include "Game.h"
 #include "GpuDebugRenderer.h"
-
 #include "windows.h"
 
 #include <imgui.h>
+#include <cstdint>
 
 #undef max
 #define TINYEXR_IMPLEMENTATION
@@ -780,6 +780,7 @@ static int transPermutationPrev = 0;
 static bool shadowPermutationPrev = 0;
 static bool RenderTerrainPrev = 0;
 static float multipleScatteringFactorPrev = 0;
+static float uiMsLutPreviewExposure = 32.0f;
 
 void Game::render()
 {
@@ -901,6 +902,36 @@ void Game::render()
 				ImGui::SetTooltip("If DualScattering>0, the path tracer will use it and stop at the first path depth.");
 		}
 
+		ImGui::End();
+		////////////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////
+		ImGui::Begin("LUT Visualizations");
+
+		if (mTransmittanceTex && mTransmittanceTex->mShaderResourceView)
+		{
+			ImGui::TextUnformatted("Transmittance LUT");
+			ImGui::Image((void*)mTransmittanceTex->mShaderResourceView, ImVec2(512.0f, 128.0f));
+		}
+
+		if (MultiScattTex && MultiScattTex->mShaderResourceView)
+		{
+			ImGui::TextUnformatted("Multi-Scattering LUT");
+			ImGui::SliderFloat("MS LUT exposure", &uiMsLutPreviewExposure, 1.0f, 256.0f, "%.1f");
+			ImGui::Image(
+				(void*)MultiScattTex->mShaderResourceView,
+				ImVec2(256.0f, 256.0f),
+				ImVec2(0.0f, 0.0f),
+				ImVec2(1.0f, 1.0f),
+				ImVec4(uiMsLutPreviewExposure, uiMsLutPreviewExposure, uiMsLutPreviewExposure, 1.0f));
+		}
+
+		if (mSkyViewLutTex && mSkyViewLutTex->mShaderResourceView)
+		{
+			ImGui::TextUnformatted("SkyView LUT");
+			ImGui::Image((void*)mSkyViewLutTex->mShaderResourceView, ImVec2(512.0f, 288.0f));
+		}
+
+		ImGui::TextUnformatted("Note: 3D LUTs are not displayed in this panel.");
 		ImGui::End();
 		////////////////////////////////////////////////////////////////////////////////////////////////////
 

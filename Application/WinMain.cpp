@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "BuildConfig.h"
+
+#if !SKY_OPENGL_EXPERIMENT
 
 #include "Dx11Base/WindowHelper.h"
 #include "Dx11Base/Dx11Device.h"
@@ -248,5 +251,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	// End of application
 	return (int)msg.wParam;
 }
+
+#endif
 
 
