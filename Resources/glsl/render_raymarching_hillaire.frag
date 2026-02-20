@@ -9,6 +9,7 @@ uniform sampler2D u_multiscattering_lut;
 uniform sampler3D u_aerial_perspective_volume;
 uniform sampler2D u_scene_color;
 uniform sampler2D u_scene_linear_depth;
+uniform sampler2DShadow u_shadowmap_tex;
 
 uniform vec3 u_sun_direction;
 uniform float u_bottom_radius;
@@ -37,6 +38,7 @@ uniform float u_fov_y_degrees;
 uniform vec3 u_view_forward;
 uniform vec3 u_view_right;
 uniform vec3 u_view_up;
+uniform mat4 u_shadow_view_proj;
 uniform int u_multi_scattering_lut_res;
 uniform int u_fast_sky;
 uniform int u_fast_aerial_perspective;
@@ -165,6 +167,33 @@ vec3 GetMultipleScattering(in vec3 worldPos, in float viewZenithCosAngle)
 	return texture(u_multiscattering_lut, uv).rgb;
 }
 
+float getTerrainShadow(in vec3 atmospherePos)
+{
+	vec3 terrainWorldPos = atmospherePos + vec3(0.0, 0.0, -u_bottom_radius);
+	vec4 shadowClip = u_shadow_view_proj * vec4(terrainWorldPos, 1.0);
+	vec3 shadowNdc = shadowClip.xyz / max(shadowClip.w, 1e-6);
+	vec2 shadowUv = vec2(shadowNdc.x * 0.5 + 0.5, shadowNdc.y * 0.5 + 0.5);
+	float shadowDepth = shadowNdc.z * 0.5 + 0.5;
+	if (shadowUv.x < 0.0 || shadowUv.x >= 1.0 || shadowUv.y < 0.0 || shadowUv.y >= 1.0 || shadowDepth < 0.0 || shadowDepth >= 1.0)
+	{
+		return 1.0;
+	}
+	const vec2 texelSize = 1.0 / vec2(textureSize(u_shadowmap_tex, 0));
+	const float depthBias = 0.0001;
+	float shadow = 0.0;
+	float count = 0.0;
+	for (int y = -1; y <= 1; ++y)
+	{
+		for (int x = -1; x <= 1; ++x)
+		{
+			vec2 uv = shadowUv + vec2(float(x), float(y)) * texelSize;
+			shadow += texture(u_shadowmap_tex, vec3(uv, shadowDepth - depthBias));
+			count += 1.0;
+		}
+	}
+	return shadow / max(count, 1.0);
+}
+
 vec3 IntegrateScatteredLuminance(in vec3 worldPos, in vec3 worldDir, in vec3 sunDir, in float tMaxLimit, out vec3 outTransmittance)
 {
 	outTransmittance = vec3(1.0);
@@ -230,7 +259,8 @@ vec3 IntegrateScatteredLuminance(in vec3 worldPos, in vec3 worldDir, in vec3 sun
 		vec3 multiScatteredLuminance = GetMultipleScattering(P, sunZenithCosAngle);
 		float tEarth = raySphereIntersectNearest(P, sunDir, earthO + PLANET_RADIUS_OFFSET * upVector, u_bottom_radius);
 		float earthShadow = (tEarth >= 0.0) ? 0.0 : 1.0;
-		vec3 S = u_sun_illuminance * (earthShadow * transmittanceToSun * phaseTimesScattering + multiScatteredLuminance * medium.scattering);
+		float shadow = getTerrainShadow(P);
+		vec3 S = u_sun_illuminance * (earthShadow * shadow * transmittanceToSun * phaseTimesScattering + multiScatteredLuminance * medium.scattering);
 
 		vec3 Sint = (S - S * sampleTransmittance) / max(medium.extinction, vec3(1e-4));
 		L += throughput * Sint;

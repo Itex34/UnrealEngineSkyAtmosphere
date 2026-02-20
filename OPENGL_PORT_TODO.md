@@ -80,14 +80,46 @@ Out of scope:
 - Touch points:
   - `Application/GameGl.cpp`
 
-2. Add GL debug output and pass-level error diagnostics.
+2. Cache uniform locations and avoid per-frame `glGetUniformLocation`.
+- Uniform lookups currently happen repeatedly in hot paths (`uploadAtmosphereUniforms`, terrain, present).
+- Cache per-program uniform locations after link and reuse on each draw/dispatch.
+- Keep fallback behavior for missing uniforms (`-1`) to preserve shader flexibility.
+- Touch points:
+  - `Application/GameGl.cpp`
+  - `Application/GameGl.h`
+
+3. Avoid rebuilding shadow map every frame when not needed.
+- Track dirty state for sun direction / terrain parameters that affect shadows.
+- Re-render shadow map only when required (or at fixed cadence while camera-only moves).
+- Touch points:
+  - `Application/GameGl.cpp`
+  - `Application/GameGl.h`
+
+4. Add GL debug output and pass-level error diagnostics.
 - Enable `GL_KHR_debug` callback in debug builds.
 - Tag objects/passes for easier GPU debugging.
 - Touch points:
   - `Application/WinMainGlfw.cpp`
   - `Application/GameGl.cpp`
 
-3. Harden resize/resource recreation.
+5. Reduce terrain pass cost (high-vertex shader texture sampling).
+- `terrain.vert` currently performs multiple heightmap samples per vertex for smoothing + normal estimation.
+- Add quality tiers: cheaper normal approximation, reduced terrain resolution, or optional lower-cost shading path.
+- Longer-term: move terrain generation/normal prep to precompute/compute path and consume compact buffers.
+- Touch points:
+  - `Resources/glsl/terrain.vert`
+  - `Application/GameGl.cpp`
+  - `Application/WinMainGlfw.cpp`
+
+6. Add runtime scalability knobs for heavy resources.
+- Expose shadow map resolution (`mShadowMapSize`) and aerial perspective volume dimensions in UI/config.
+- Use presets (low/medium/high) to quickly trade quality for frame time.
+- Touch points:
+  - `Application/GameGl.h`
+  - `Application/GameGl.cpp`
+  - `Application/WinMainGlfw.cpp`
+
+7. Harden resize/resource recreation.
 - Check all create/destroy paths for failure handling.
 - Ensure no stale bindings across resize and shutdown.
 - Touch points:
@@ -126,4 +158,3 @@ Out of scope:
 3. Performance checks:
 - Debug readbacks disabled by default.
 - Frame time stable during camera movement and sun animation.
-

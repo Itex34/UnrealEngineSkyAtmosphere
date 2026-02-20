@@ -64,7 +64,14 @@ public:
 	void setFastSky(bool enabled);
 	void setFastAerialPerspective(bool enabled);
 	void setMultipleScatteringFactor(float value);
-	void setRenderTerrain(bool enabled) { mRenderTerrain = enabled; }
+	void setRenderTerrain(bool enabled)
+	{
+		if (mRenderTerrain != enabled)
+		{
+			mRenderTerrain = enabled;
+			markSkyAndApDirty();
+		}
+	}
 	void setAtmosphereInfo(const GlAtmosphereInfo& value);
 
 	float getCameraHeight() const { return mCameraHeight; }
@@ -104,6 +111,7 @@ private:
 	bool createSkyViewResources();
 	bool createAerialPerspectiveResources();
 	bool createTerrainResources();
+	bool createShadowResources();
 	bool createSceneResources();
 	void destroyPrograms();
 	void destroyTransmittanceResources();
@@ -111,17 +119,20 @@ private:
 	void destroySkyViewResources();
 	void destroyAerialPerspectiveResources();
 	void destroyTerrainResources();
+	void destroyShadowResources();
 	void destroySceneResources();
 	void renderTransmittanceLut();
 	void renderMultipleScatteringLut();
 	void renderSkyViewLut();
 	void renderAerialPerspectiveVolume();
+	void renderShadowMap();
 	void renderTerrainScene();
 	void renderPresent();
 	void uploadAtmosphereUniforms(unsigned int program);
 	void updateMultiScatteringDebugStats();
 	void updateAerialPerspectiveDebugStats();
 	void updateViewAndSunDirections();
+	void updateShadowViewProj();
 	void markLutsDirty();
 	void markSkyAndApDirty();
 
@@ -166,6 +177,7 @@ private:
 	unsigned int mTerrainProgram = 0;
 	unsigned int mRaymarchProgram = 0;
 	unsigned int mPresentProgram = 0;
+	unsigned int mTerrainShadowProgram = 0;
 
 	unsigned int mTransmittanceTex = 0;
 	unsigned int mTransmittanceFbo = 0;
@@ -174,6 +186,8 @@ private:
 	unsigned int mSkyViewFbo = 0;
 	unsigned int mAerialPerspectiveTex = 0;
 	unsigned int mTerrainHeightmapTex = 0;
+	unsigned int mShadowDepthTex = 0;
+	unsigned int mShadowFbo = 0;
 	unsigned int mSceneFbo = 0;
 	unsigned int mSceneHdrTex = 0;
 	unsigned int mSceneLinearDepthTex = 0;
@@ -186,4 +200,11 @@ private:
 	bool mAerialPerspectiveStatsValid = false;
 	bool mUseAerialPerspectiveDebug = false;
 	float mAerialPerspectiveDebugDepthKm = 16.0f;
+	unsigned int mShadowMapSize = 4096;
+	float mShadowViewProj[16] = {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
 };
