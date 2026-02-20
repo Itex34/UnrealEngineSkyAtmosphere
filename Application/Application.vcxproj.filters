@@ -71,6 +71,12 @@
     <ClCompile Include="GameGl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GlfwAppLoop.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GlfwAppUi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="WinMainGlfw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -110,6 +116,15 @@
       <Filter>Imgui</Filter>
     </ClInclude>
     <ClInclude Include="BuildConfig.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GlfwAppLoop.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GlfwAppState.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GlfwAppUi.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="GameGl.h">
@@ -188,10 +203,7 @@
     <None Include="..\Resources\glsl\fullscreen_triangle.vert">
       <Filter>HLSL</Filter>
     </None>
-    <None Include="..\Resources\glsl\present_transmittance.frag">
-      <Filter>HLSL</Filter>
-    </None>
-    <None Include="..\Resources\glsl\render_sky_from_lut.frag">
+    <None Include="..\Resources\glsl\postprocess.frag">
       <Filter>HLSL</Filter>
     </None>
     <None Include="..\Resources\glsl\render_raymarching_hillaire.frag">

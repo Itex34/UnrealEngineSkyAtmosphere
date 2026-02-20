@@ -42,6 +42,7 @@ uniform mat4 u_shadow_view_proj;
 uniform int u_multi_scattering_lut_res;
 uniform int u_fast_sky;
 uniform int u_fast_aerial_perspective;
+uniform int u_colored_transmittance;
 uniform float u_ap_debug_depth_km;
 
 const float PI = 3.1415926535897932384626433832795;
@@ -178,20 +179,7 @@ float getTerrainShadow(in vec3 atmospherePos)
 	{
 		return 1.0;
 	}
-	const vec2 texelSize = 1.0 / vec2(textureSize(u_shadowmap_tex, 0));
-	const float depthBias = 0.0001;
-	float shadow = 0.0;
-	float count = 0.0;
-	for (int y = -1; y <= 1; ++y)
-	{
-		for (int x = -1; x <= 1; ++x)
-		{
-			vec2 uv = shadowUv + vec2(float(x), float(y)) * texelSize;
-			shadow += texture(u_shadowmap_tex, vec3(uv, shadowDepth - depthBias));
-			count += 1.0;
-		}
-	}
-	return shadow / max(count, 1.0);
+	return texture(u_shadowmap_tex, vec3(shadowUv, shadowDepth));
 }
 
 vec3 IntegrateScatteredLuminance(in vec3 worldPos, in vec3 worldDir, in vec3 sunDir, in float tMaxLimit, out vec3 outTransmittance)
@@ -339,9 +327,9 @@ void main()
 	float sceneDepthKm = texture(u_scene_linear_depth, v_uv).r;
 	bool hasOpaque = sceneDepthKm > 0.0;
 	float depthBufferValue = hasOpaque ? 0.0 : 1.0;
-	float opacity = hasOpaque ? 1.0 : 0.0;
 
 	vec3 L = vec3(0.0);
+	vec3 sceneTransmittance = vec3(1.0);
 	if (u_fast_sky != 0 && viewHeight < u_top_radius && !hasOpaque)
 	{
 		vec3 upVector = normalize(worldPos);
@@ -370,7 +358,6 @@ void main()
 		vec2 skyUv;
 		SkyViewLutParamsToUv(intersectGround, viewZenithCosAngle, lightViewCosAngle, viewHeight, skyUv);
 		L = texture(u_skyview_lut, skyUv).rgb + GetSunLuminance(worldPos, worldDir);
-		opacity = 1.0;
 	}
 	else
 	{
@@ -385,7 +372,8 @@ void main()
 			{
 				vec4 ap = SampleAerialPerspectiveVolume(v_uv, max(sceneDepthKm, 0.0));
 				L += ap.rgb;
-				opacity = ap.a;
+				float transmittance = clamp(1.0 - ap.a, 0.0, 1.0);
+				sceneTransmittance = vec3(transmittance);
 			}
 			else
 			{
@@ -399,7 +387,6 @@ void main()
 				{
 					L += GetSunLuminance(worldPos, worldDir);
 				}
-				opacity = 1.0;
 			}
 		}
 		else
@@ -412,29 +399,28 @@ void main()
 				L += IntegrateScatteredLuminance(marchStart, worldDir, normalize(u_sun_direction), depthLimit, throughput);
 				if (hasOpaque)
 				{
-					float transmittance = dot(throughput, vec3(1.0 / 3.0));
-					opacity = 1.0 - transmittance;
-				}
-				else
-				{
-					opacity = 1.0;
+					if (u_colored_transmittance != 0)
+					{
+						sceneTransmittance = clamp(throughput, vec3(0.0), vec3(1.0));
+					}
+					else
+					{
+						float transmittance = clamp(dot(throughput, vec3(1.0 / 3.0)), 0.0, 1.0);
+						sceneTransmittance = vec3(transmittance);
+					}
 				}
 			}
 			else
 			{
 				L += GetSunLuminance(worldPos, worldDir);
-				opacity = 1.0;
+				if (hasOpaque)
+				{
+					sceneTransmittance = vec3(0.0);
+				}
 			}
 		}
 	}
 
-	opacity = clamp(opacity, 0.0, 1.0);
-	vec3 hdr = hasOpaque ? (sceneHdr * (1.0 - opacity) + L) : L;
-
-	// Match DX11 PostProcessPS: white balance + exposure + gamma.
-	const vec3 white_point = vec3(1.08241, 0.96756, 0.95003);
-	const float exposure = 10.0;
-	vec3 color = vec3(1.0) - exp(-max(hdr, vec3(0.0)) / white_point * exposure);
-	color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
-	o_color = vec4(color, 1.0);
+	vec3 hdr = hasOpaque ? (sceneHdr * sceneTransmittance + L) : L;
+	o_color = vec4(hdr, 1.0);
 }

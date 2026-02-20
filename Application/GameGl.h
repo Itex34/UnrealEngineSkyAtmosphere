@@ -49,7 +49,6 @@ public:
 	void shutdown();
 	void resize(int width, int height);
 	void render();
-	void setAerialPerspectiveDebug(bool enabled) { mUseAerialPerspectiveDebug = enabled; }
 	void setAerialPerspectiveDebugDepthKm(float depthKm) { mAerialPerspectiveDebugDepthKm = depthKm; }
 	void setCameraHeight(float value);
 	void setCameraForward(float value);
@@ -63,6 +62,10 @@ public:
 	void setRayMarchMaxSpp(int value);
 	void setFastSky(bool enabled);
 	void setFastAerialPerspective(bool enabled);
+	void setColoredTransmittance(bool enabled) { mColoredTransmittance = enabled; }
+	void setAerialPerspectivePreviewSlice(int value);
+	void setMultiScatteringPreviewExposure(float value) { mMultiScatteringPreviewExposure = value; }
+	void setAerialPerspectivePreviewExposure(float value) { mAerialPerspectivePreviewExposure = value; }
 	void setMultipleScatteringFactor(float value);
 	void setRenderTerrain(bool enabled)
 	{
@@ -89,13 +92,17 @@ public:
 	int getRayMarchMaxSpp() const { return mRayMarchMaxSpp; }
 	bool getFastSky() const { return mFastSky; }
 	bool getFastAerialPerspective() const { return mFastAerialPerspective; }
+	bool getColoredTransmittance() const { return mColoredTransmittance; }
 	float getMultipleScatteringFactor() const { return mMultipleScatteringFactor; }
 	bool getRenderTerrain() const { return mRenderTerrain; }
 	GlAtmosphereInfo getAtmosphereInfo() const { return mAtmosphereInfo; }
 
 	unsigned int getTransmittanceTexture() const { return mTransmittanceTex; }
-	unsigned int getMultipleScatteringTexture() const { return mMultiScatteringTex; }
+	unsigned int getMultipleScatteringPreviewTexture() const { return mMultiScatteringPreviewTex; }
 	unsigned int getSkyViewTexture() const { return mSkyViewTex; }
+	unsigned int getAerialPerspectivePreviewTexture() const { return mAerialPerspectivePreviewTex; }
+	int getAerialPerspectiveDepthSliceCount() const { return static_cast<int>(mLutsInfo.AERIAL_PERSPECTIVE_TEXTURE_DEPTH); }
+	int getAerialPerspectivePreviewSlice() const { return mAerialPerspectivePreviewSlice; }
 	float getMultiScatteringDebugMin() const { return mMultiScatteringDebugMin; }
 	float getMultiScatteringDebugMax() const { return mMultiScatteringDebugMax; }
 	bool hasMultiScatteringDebugStats() const { return mMultiScatteringStatsValid; }
@@ -128,6 +135,8 @@ private:
 	void renderShadowMap();
 	void renderTerrainScene();
 	void renderPresent();
+	void copyAerialPerspectivePreviewSlice();
+	void updateLutPreviewTextures();
 	void uploadAtmosphereUniforms(unsigned int program);
 	void updateMultiScatteringDebugStats();
 	void updateAerialPerspectiveDebugStats();
@@ -161,6 +170,7 @@ private:
 	int mRayMarchMaxSpp = 14;
 	bool mFastSky = true;
 	bool mFastAerialPerspective = true;
+	bool mColoredTransmittance = false;
 	bool mRenderTerrain = true;
 	GlVec3 mViewDir = { 0.0f, 1.0f, 0.0f };
 	GlVec3 mViewRight = { 1.0f, 0.0f, 0.0f };
@@ -176,15 +186,17 @@ private:
 	unsigned int mAerialPerspectiveProgram = 0;
 	unsigned int mTerrainProgram = 0;
 	unsigned int mRaymarchProgram = 0;
-	unsigned int mPresentProgram = 0;
+	unsigned int mPostProcessProgram = 0;
 	unsigned int mTerrainShadowProgram = 0;
 
 	unsigned int mTransmittanceTex = 0;
 	unsigned int mTransmittanceFbo = 0;
 	unsigned int mMultiScatteringTex = 0;
+	unsigned int mMultiScatteringPreviewTex = 0;
 	unsigned int mSkyViewTex = 0;
 	unsigned int mSkyViewFbo = 0;
 	unsigned int mAerialPerspectiveTex = 0;
+	unsigned int mAerialPerspectivePreviewTex = 0;
 	unsigned int mTerrainHeightmapTex = 0;
 	unsigned int mShadowDepthTex = 0;
 	unsigned int mShadowFbo = 0;
@@ -192,13 +204,17 @@ private:
 	unsigned int mSceneHdrTex = 0;
 	unsigned int mSceneLinearDepthTex = 0;
 	unsigned int mSceneDepthTex = 0;
+	unsigned int mFinalHdrFbo = 0;
+	unsigned int mFinalHdrTex = 0;
 	float mMultiScatteringDebugMin = 0.0f;
 	float mMultiScatteringDebugMax = 0.0f;
 	bool mMultiScatteringStatsValid = false;
 	float mAerialPerspectiveDebugMin = 0.0f;
 	float mAerialPerspectiveDebugMax = 0.0f;
 	bool mAerialPerspectiveStatsValid = false;
-	bool mUseAerialPerspectiveDebug = false;
+	int mAerialPerspectivePreviewSlice = 0;
+	float mMultiScatteringPreviewExposure = 32.0f;
+	float mAerialPerspectivePreviewExposure = 16.0f;
 	float mAerialPerspectiveDebugDepthKm = 16.0f;
 	unsigned int mShadowMapSize = 4096;
 	float mShadowViewProj[16] = {

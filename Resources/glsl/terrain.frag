@@ -43,16 +43,16 @@ float sampleTerrainShadow(in vec3 worldPos)
 	{
 		return 1.0;
 	}
-	const vec2 texelSize = 1.0 / vec2(textureSize(u_shadowmap_tex, 0));
-	const float depthBias = 0.0001;
-	float shadow = 0.0;
-	float count = 0.0;
+	float shadow = texture(u_shadowmap_tex, vec3(shadowUv, shadowDepth));
+	float count = 1.0;
 	for (int y = -3; y <= 3; ++y)
 	{
 		for (int x = -3; x <= 3; ++x)
 		{
-			vec2 uv = shadowUv + vec2(float(x), float(y)) * texelSize;
-			shadow += texture(u_shadowmap_tex, vec3(uv, shadowDepth - depthBias));
+			float offsetx = float(x) * 0.0001;
+			float offsety = float(y) * 0.0001;
+			vec2 uv = shadowUv + vec2(-offsetx, -offsety);
+			shadow += texture(u_shadowmap_tex, vec3(uv, shadowDepth));
 			count += 1.0;
 		}
 	}

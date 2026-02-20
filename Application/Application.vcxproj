@@ -169,6 +169,8 @@
     <ClCompile Include="..\imgui\imgui_widgets.cpp" />
     <ClCompile Include="DataRecord.cpp" />
     <ClCompile Include="Game.cpp" />
+    <ClCompile Include="GlfwAppLoop.cpp" />
+    <ClCompile Include="GlfwAppUi.cpp" />
     <ClCompile Include="GameGl.cpp" />
     <ClCompile Include="GpuDebugRenderer.cpp" />
     <ClCompile Include="RenderSky.cpp" />
@@ -191,6 +193,9 @@
     <ClInclude Include="..\imgui\stb_truetype.h" />
     <ClInclude Include="BuildConfig.h" />
     <ClInclude Include="Game.h" />
+    <ClInclude Include="GlfwAppLoop.h" />
+    <ClInclude Include="GlfwAppState.h" />
+    <ClInclude Include="GlfwAppUi.h" />
     <ClInclude Include="GameGl.h" />
     <ClInclude Include="GpuDebugRenderer.h" />
     <ClInclude Include="SkyAtmosphereCommon.h" />
@@ -282,8 +287,7 @@
     </None>
     <None Include="..\Resources\glsl\fullscreen_triangle.vert" />
     <None Include="..\Resources\glsl\render_raymarching_hillaire.frag" />
-    <None Include="..\Resources\glsl\render_sky_from_lut.frag" />
-    <None Include="..\Resources\glsl\present_transmittance.frag" />
+    <None Include="..\Resources\glsl\postprocess.frag" />
     <None Include="..\Resources\glsl\skyview_lut.frag" />
     <None Include="..\Resources\glsl\transmittance_lut.frag" />
   </ItemGroup>
