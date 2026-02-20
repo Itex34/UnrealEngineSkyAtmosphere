@@ -19,6 +19,18 @@ Runtime keys:
 - T toggle between ray-marching and path tracing (disables the multiple scattering approximation when switch to path tracing)
 - F5/F9 to save/load a state
 
+OpenGL/GLFW experimental bootstrap:
+- A minimal OpenGL startup path is available in `Application/WinMainGlfw.cpp`.
+- Toggle it in `Application/BuildConfig.h` (`SKY_OPENGL_EXPERIMENT`).
+- Current OpenGL progress:
+  - GLFW + GLAD + ImGui startup path.
+  - Hillaire ray-marching stages ported in GLSL:
+    - Transmittance LUT generation (`Resources/glsl/transmittance_lut.frag`)
+    - SkyView LUT generation (`Resources/glsl/skyview_lut.frag`)
+    - Direct final ray-marching sky render (`Resources/glsl/render_raymarching_hillaire.frag`)
+    - Sky rendering from SkyView LUT (`Resources/glsl/render_sky_from_lut.frag`) kept as a secondary/debug path
+  - LUTs are previewed in the ImGui panel.
+
 Submodules
 * [imgui](https://github.com/ocornut/imgui) V1.62 supported
 * [tinyexr](https://github.com/syoyo/tinyexr)

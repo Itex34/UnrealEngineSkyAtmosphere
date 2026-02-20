@@ -324,6 +324,18 @@ private:
 	float uiCamForward = -1.0f;
 	float uiSunPitch = 0.45f;
 	float uiSunYaw = 0.0f;
+	bool uiDebugFpsCamera = false;
+	bool uiDebugPointerLock = false;
+	float uiDebugMoveSpeed = 40.0f;
+	float uiDebugMouseSensitivity = 0.15f;
+	float uiDebugCamPosX = 0.0f;
+	float uiDebugCamPosY = -1.0f;
+	float uiDebugCamPosZ = 0.5f;
+	bool mDebugFpsCameraPrev = false;
+	bool mDebugPointerLockApplied = false;
+	bool mDebugMouseDeltaInit = false;
+	int mDebugLastMouseX = 0;
+	int mDebugLastMouseY = 0;
 	int NumScatteringOrder = 4;
 
 	bool  ShouldClearPathTracedBuffer = true;

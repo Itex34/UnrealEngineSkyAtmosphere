@@ -3,10 +3,10 @@
 
 #include "Game.h"
 #include "GpuDebugRenderer.h"
-
 #include "windows.h"
 
 #include <imgui.h>
+#include <cstdint>
 
 #undef max
 #define TINYEXR_IMPLEMENTATION
@@ -530,6 +530,14 @@ void Game::releaseResolutionDependentResources()
 
 void Game::shutdown()
 {
+	if (mDebugPointerLockApplied)
+	{
+		ClipCursor(nullptr);
+		ReleaseCapture();
+		while (ShowCursor(TRUE) < 0) {}
+		mDebugPointerLockApplied = false;
+	}
+
 	gpuDebugSystemRelease();
 	gpuDebugStateDestroy(mDebugState);
 	gpuDebugStateDestroy(mDummyDebugState);
@@ -548,9 +556,65 @@ void Game::update(const WindowInputData& inputData)
 {
 	static int previousMouseX = inputData.mInputStatus.mouseX;
 	static int previousMouseY = inputData.mInputStatus.mouseY;
+	static ULONGLONG previousUpdateTimeMs = GetTickCount64();
+	const ULONGLONG currentUpdateTimeMs = GetTickCount64();
+	float dt = float(currentUpdateTimeMs - previousUpdateTimeMs) / 1000.0f;
+	previousUpdateTimeMs = currentUpdateTimeMs;
+	if (dt < 0.0f) dt = 0.0f;
+	if (dt > 0.25f) dt = 0.25f;
+
+	auto getWindowHandle = []() -> HWND
+	{
+		if (g_dx11Device && g_dx11Device->getSwapChain())
+		{
+			DXGI_SWAP_CHAIN_DESC desc = {};
+			if (SUCCEEDED(g_dx11Device->getSwapChain()->GetDesc(&desc)))
+			{
+				return desc.OutputWindow;
+			}
+		}
+		return GetForegroundWindow();
+	};
+
+	auto applyPointerLock = [&](bool enabled)
+	{
+		if (enabled)
+		{
+			HWND hwnd = getWindowHandle();
+			if (!hwnd)
+			{
+				return;
+			}
+			RECT clientRect = {};
+			GetClientRect(hwnd, &clientRect);
+			POINT topLeft = { clientRect.left, clientRect.top };
+			POINT bottomRight = { clientRect.right, clientRect.bottom };
+			ClientToScreen(hwnd, &topLeft);
+			ClientToScreen(hwnd, &bottomRight);
+			RECT clipRect = { topLeft.x, topLeft.y, bottomRight.x, bottomRight.y };
+			ClipCursor(&clipRect);
+			SetCapture(hwnd);
+			while (ShowCursor(FALSE) >= 0) {}
+		}
+		else
+		{
+			ClipCursor(nullptr);
+			ReleaseCapture();
+			while (ShowCursor(TRUE) < 0) {}
+		}
+		mDebugPointerLockApplied = enabled;
+		mDebugMouseDeltaInit = false;
+	};
+
+	const bool pointerLockDesired = uiDebugFpsCamera && uiDebugPointerLock;
+	if (pointerLockDesired != mDebugPointerLockApplied)
+	{
+		applyPointerLock(pointerLockDesired);
+	}
+
 	for (auto& event : inputData.mInputEvents)
 	{
-		if (event.type == etMouseMoved && inputData.mInputStatus.keys[kShift])
+		if (!uiDebugFpsCamera && event.type == etMouseMoved && inputData.mInputStatus.keys[kShift])
 		{
 			int dx = inputData.mInputStatus.mouseX - previousMouseX;
 			int dy = inputData.mInputStatus.mouseY - previousMouseY;
@@ -559,7 +623,7 @@ void Game::update(const WindowInputData& inputData)
 			ShouldClearPathTracedBuffer = dy != 0 || dx != 0;
 			mFrameId = 0;
 		}
-		if (event.type == etMouseMoved && inputData.mInputStatus.keys[kControl])
+		if (!uiDebugFpsCamera && event.type == etMouseMoved && inputData.mInputStatus.keys[kControl])
 		{
 			int dx = inputData.mInputStatus.mouseX - previousMouseX;
 			int dy = inputData.mInputStatus.mouseY - previousMouseY;
@@ -572,6 +636,15 @@ void Game::update(const WindowInputData& inputData)
 		{
 			mConstantBufferCPU.gMouseLastDownPos[0] = inputData.mInputStatus.mouseX;
 			mConstantBufferCPU.gMouseLastDownPos[1] = inputData.mInputStatus.mouseY;
+		}
+		if (event.type == etKeyDown && event.key == kF1 && uiDebugFpsCamera)
+		{
+			uiDebugPointerLock = !uiDebugPointerLock;
+			const bool newPointerLockDesired = uiDebugFpsCamera && uiDebugPointerLock;
+			if (newPointerLockDesired != mDebugPointerLockApplied)
+			{
+				applyPointerLock(newPointerLockDesired);
+			}
 		}
 		if (event.type == etKeyDown && event.key == kC)
 			takeScreenShot = true;
@@ -596,8 +669,51 @@ void Game::update(const WindowInputData& inputData)
 		else if (event.type == etKeyDown && event.key == kF9)
 			LoadState();
 	}
-	previousMouseX = inputData.mInputStatus.mouseX;
-	previousMouseY = inputData.mInputStatus.mouseY;
+
+	if (uiDebugFpsCamera && uiDebugPointerLock)
+	{
+		const int mouseX = inputData.mInputStatus.mouseX;
+		const int mouseY = inputData.mInputStatus.mouseY;
+		if (!mDebugMouseDeltaInit)
+		{
+			mDebugLastMouseX = mouseX;
+			mDebugLastMouseY = mouseY;
+			mDebugMouseDeltaInit = true;
+		}
+		else
+		{
+			const int dx = mouseX - mDebugLastMouseX;
+			const int dy = mouseY - mDebugLastMouseY;
+			viewPitch += -float(dy) * uiDebugMouseSensitivity;
+			viewYaw += -float(dx) * uiDebugMouseSensitivity;
+			if (dx != 0 || dy != 0)
+			{
+				ShouldClearPathTracedBuffer = true;
+				mFrameId = 0;
+			}
+		}
+
+		const D3dViewport& lockViewport = g_dx11Device->getBackBufferViewport();
+		const int centerX = int(lockViewport.Width * 0.5f);
+		const int centerY = int(lockViewport.Height * 0.5f);
+		HWND hwnd = getWindowHandle();
+		if (hwnd)
+		{
+			POINT p = { centerX, centerY };
+			ClientToScreen(hwnd, &p);
+			SetCursorPos(p.x, p.y);
+		}
+		mDebugLastMouseX = centerX;
+		mDebugLastMouseY = centerY;
+		previousMouseX = centerX;
+		previousMouseY = centerY;
+	}
+	else
+	{
+		mDebugMouseDeltaInit = false;
+		previousMouseX = inputData.mInputStatus.mouseX;
+		previousMouseY = inputData.mInputStatus.mouseY;
+	}
 
 
 	// Listen to CTRL+S for shader live update in a very simple fashion (from http://www.lofibucket.com/articles/64k_intro.html)
@@ -625,10 +741,78 @@ void Game::update(const WindowInputData& inputData)
 	float3 viewDirCopy = mViewDir;
 	mViewDir.y = viewDirCopy.z;
 	mViewDir.z = viewDirCopy.y;
-	mCamPosFinal.x += mViewDir.x * uiCamForward;
-	mCamPosFinal.y += mViewDir.y * uiCamForward;
-	mCamPosFinal.z += mViewDir.z * uiCamForward;
-	mCamPosFinal.z += uiCamHeight;
+	float3 cameraFromOrbit = { 0.0f, 0.0f, 0.0f };
+	cameraFromOrbit.x += mViewDir.x * uiCamForward;
+	cameraFromOrbit.y += mViewDir.y * uiCamForward;
+	cameraFromOrbit.z += mViewDir.z * uiCamForward;
+	cameraFromOrbit.z += uiCamHeight;
+
+	const bool debugFpsToggledOn = uiDebugFpsCamera && !mDebugFpsCameraPrev;
+	mDebugFpsCameraPrev = uiDebugFpsCamera;
+	if (debugFpsToggledOn)
+	{
+		uiDebugCamPosX = cameraFromOrbit.x;
+		uiDebugCamPosY = cameraFromOrbit.y;
+		uiDebugCamPosZ = cameraFromOrbit.z;
+	}
+
+	if (uiDebugFpsCamera)
+	{
+		float3 worldUp = { 0.0f, 0.0f, 1.0f };
+		float3 right = {
+			worldUp.y * mViewDir.z - worldUp.z * mViewDir.y,
+			worldUp.z * mViewDir.x - worldUp.x * mViewDir.z,
+			worldUp.x * mViewDir.y - worldUp.y * mViewDir.x
+		};
+		float rightLen = sqrtf(right.x * right.x + right.y * right.y + right.z * right.z);
+		if (rightLen < 1e-6f)
+		{
+			right = { 1.0f, 0.0f, 0.0f };
+		}
+		else
+		{
+			right.x /= rightLen;
+			right.y /= rightLen;
+			right.z /= rightLen;
+		}
+
+		float3 move = { 0.0f, 0.0f, 0.0f };
+		if (inputData.mInputStatus.keys[kW]) { move.x += mViewDir.x; move.y += mViewDir.y; move.z += mViewDir.z; }
+		if (inputData.mInputStatus.keys[kS]) { move.x -= mViewDir.x; move.y -= mViewDir.y; move.z -= mViewDir.z; }
+		if (inputData.mInputStatus.keys[kD]) { move.x += right.x; move.y += right.y; move.z += right.z; }
+		if (inputData.mInputStatus.keys[kA]) { move.x -= right.x; move.y -= right.y; move.z -= right.z; }
+		if (inputData.mInputStatus.keys[kE]) { move.x += worldUp.x; move.y += worldUp.y; move.z += worldUp.z; }
+		if (inputData.mInputStatus.keys[kQ]) { move.x -= worldUp.x; move.y -= worldUp.y; move.z -= worldUp.z; }
+
+		float moveLen = sqrtf(move.x * move.x + move.y * move.y + move.z * move.z);
+		if (moveLen > 1e-6f)
+		{
+			move.x /= moveLen;
+			move.y /= moveLen;
+			move.z /= moveLen;
+			float speed = uiDebugMoveSpeed;
+			if (inputData.mInputStatus.keys[kShift] || inputData.mInputStatus.keys[kLshift] || inputData.mInputStatus.keys[kRshift])
+			{
+				speed *= 3.0f;
+			}
+			uiDebugCamPosX += move.x * speed * dt;
+			uiDebugCamPosY += move.y * speed * dt;
+			uiDebugCamPosZ += move.z * speed * dt;
+			ShouldClearPathTracedBuffer = true;
+			mFrameId = 0;
+		}
+
+		mCamPosFinal = { uiDebugCamPosX, uiDebugCamPosY, uiDebugCamPosZ };
+		uiCamForward = mCamPosFinal.y;
+		uiCamHeight = mCamPosFinal.z;
+	}
+	else
+	{
+		mCamPosFinal = cameraFromOrbit;
+		uiDebugCamPosX = mCamPosFinal.x;
+		uiDebugCamPosY = mCamPosFinal.y;
+		uiDebugCamPosZ = mCamPosFinal.z;
+	}
 
 	{
 		float3 focusPosition2 = float3(mCamPosFinal.x + mViewDir.x, mCamPosFinal.y + mViewDir.y, mCamPosFinal.z + mViewDir.z);
@@ -780,6 +964,7 @@ static int transPermutationPrev = 0;
 static bool shadowPermutationPrev = 0;
 static bool RenderTerrainPrev = 0;
 static float multipleScatteringFactorPrev = 0;
+static float uiMsLutPreviewExposure = 32.0f;
 
 void Game::render()
 {
@@ -812,6 +997,25 @@ void Game::render()
 		ImGui::SliderFloat("IllumScale", &mSunIlluminanceScale, 0.1f, 100.0f, "%.3f", 3.0f);
 		ImGui::SliderFloat("Yaw", &uiSunYaw, -3.14f, 3.14f);
 		ImGui::SliderFloat("Pitch", &uiSunPitch, -3.14f, 3.14f);
+
+		ImGui::End();
+		////////////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////
+		ImGui::Begin("Debug Camera");
+
+		bool debugCameraChanged = false;
+		debugCameraChanged |= ImGui::Checkbox("FPS Camera", &uiDebugFpsCamera);
+		debugCameraChanged |= ImGui::Checkbox("Pointer Lock (F1)", &uiDebugPointerLock);
+		debugCameraChanged |= ImGui::SliderFloat("Move Speed", &uiDebugMoveSpeed, 1.0f, 400.0f, "%.1f");
+		debugCameraChanged |= ImGui::SliderFloat("Mouse Sensitivity", &uiDebugMouseSensitivity, 0.01f, 1.0f, "%.3f deg/px");
+		debugCameraChanged |= ImGui::SliderFloat("View Yaw", &viewYaw, -180.0f, 180.0f, "%.2f");
+		debugCameraChanged |= ImGui::SliderFloat("View Pitch", &viewPitch, -80.0f, 80.0f, "%.2f");
+		ImGui::TextUnformatted("Move: WASD + Q/E, sprint: Shift");
+		if (debugCameraChanged)
+		{
+			ShouldClearPathTracedBuffer = true;
+			mFrameId = 0;
+		}
 
 		ImGui::End();
 		////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -901,6 +1105,36 @@ void Game::render()
 				ImGui::SetTooltip("If DualScattering>0, the path tracer will use it and stop at the first path depth.");
 		}
 
+		ImGui::End();
+		////////////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////
+		ImGui::Begin("LUT Visualizations");
+
+		if (mTransmittanceTex && mTransmittanceTex->mShaderResourceView)
+		{
+			ImGui::TextUnformatted("Transmittance LUT");
+			ImGui::Image((void*)mTransmittanceTex->mShaderResourceView, ImVec2(512.0f, 128.0f));
+		}
+
+		if (MultiScattTex && MultiScattTex->mShaderResourceView)
+		{
+			ImGui::TextUnformatted("Multi-Scattering LUT");
+			ImGui::SliderFloat("MS LUT exposure", &uiMsLutPreviewExposure, 1.0f, 256.0f, "%.1f");
+			ImGui::Image(
+				(void*)MultiScattTex->mShaderResourceView,
+				ImVec2(256.0f, 256.0f),
+				ImVec2(0.0f, 0.0f),
+				ImVec2(1.0f, 1.0f),
+				ImVec4(uiMsLutPreviewExposure, uiMsLutPreviewExposure, uiMsLutPreviewExposure, 1.0f));
+		}
+
+		if (mSkyViewLutTex && mSkyViewLutTex->mShaderResourceView)
+		{
+			ImGui::TextUnformatted("SkyView LUT");
+			ImGui::Image((void*)mSkyViewLutTex->mShaderResourceView, ImVec2(512.0f, 288.0f));
+		}
+
+		ImGui::TextUnformatted("Note: 3D LUTs are not displayed in this panel.");
 		ImGui::End();
 		////////////////////////////////////////////////////////////////////////////////////////////////////
 
