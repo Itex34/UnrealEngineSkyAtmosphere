@@ -62,6 +62,14 @@ public:
 	void setRayMarchMaxSpp(int value);
 	void setFastSky(bool enabled);
 	void setFastAerialPerspective(bool enabled);
+	void setShadowMapsEnabled(bool enabled)
+	{
+		if (mShadowMapsEnabled != enabled)
+		{
+			mShadowMapsEnabled = enabled;
+			markSkyAndApDirty();
+		}
+	}
 	void setColoredTransmittance(bool enabled) { mColoredTransmittance = enabled; }
 	void setAerialPerspectivePreviewSlice(int value);
 	void setMultiScatteringPreviewExposure(float value) { mMultiScatteringPreviewExposure = value; }
@@ -92,6 +100,7 @@ public:
 	int getRayMarchMaxSpp() const { return mRayMarchMaxSpp; }
 	bool getFastSky() const { return mFastSky; }
 	bool getFastAerialPerspective() const { return mFastAerialPerspective; }
+	bool getShadowMapsEnabled() const { return mShadowMapsEnabled; }
 	bool getColoredTransmittance() const { return mColoredTransmittance; }
 	float getMultipleScatteringFactor() const { return mMultipleScatteringFactor; }
 	bool getRenderTerrain() const { return mRenderTerrain; }
@@ -110,9 +119,26 @@ public:
 	float getAerialPerspectiveDebugMax() const { return mAerialPerspectiveDebugMax; }
 	bool hasAerialPerspectiveDebugStats() const { return mAerialPerspectiveStatsValid; }
 	bool isInitialised() const { return mInitialised; }
+	bool hasGpuPassTimings() const { return mGpuPassTimingsSupported; }
+	float getShadowPassMs() const { return mShadowPassTimer.lastMs; }
+	float getTransmittancePassMs() const { return mTransmittancePassTimer.lastMs; }
+	float getMultiScatteringPassMs() const { return mMultiScatteringPassTimer.lastMs; }
+	float getSkyViewPassMs() const { return mSkyViewPassTimer.lastMs; }
+	float getAerialPerspectivePassMs() const { return mAerialPerspectivePassTimer.lastMs; }
+	float getTerrainPassMs() const { return mTerrainPassTimer.lastMs; }
+	float getPresentPassMs() const { return mPresentPassTimer.lastMs; }
 
 private:
+	struct GpuPassTimer
+	{
+		unsigned int query = 0;
+		float lastMs = 0.0f;
+		bool pending = false;
+		bool active = false;
+	};
+
 	bool createPrograms();
+	void createGpuPassTimers();
 	bool createTransmittanceResources();
 	bool createMultipleScatteringResources();
 	bool createSkyViewResources();
@@ -121,6 +147,7 @@ private:
 	bool createShadowResources();
 	bool createSceneResources();
 	void destroyPrograms();
+	void destroyGpuPassTimers();
 	void destroyTransmittanceResources();
 	void destroyMultipleScatteringResources();
 	void destroySkyViewResources();
@@ -142,6 +169,9 @@ private:
 	void updateAerialPerspectiveDebugStats();
 	void updateViewAndSunDirections();
 	void updateShadowViewProj();
+	void resolveGpuPassTimers();
+	void beginGpuPassTimer(GpuPassTimer& timer);
+	void endGpuPassTimer(GpuPassTimer& timer);
 	void markLutsDirty();
 	void markSkyAndApDirty();
 
@@ -150,6 +180,7 @@ private:
 	unsigned int linkComputeProgram(unsigned int cs, const char* debugName);
 
 	bool mInitialised = false;
+	bool mGpuPassTimingsSupported = false;
 	bool mLutDirty = true;
 	bool mSkyViewDirty = true;
 	bool mAerialPerspectiveDirty = true;
@@ -170,6 +201,7 @@ private:
 	int mRayMarchMaxSpp = 14;
 	bool mFastSky = true;
 	bool mFastAerialPerspective = true;
+	bool mShadowMapsEnabled = true;
 	bool mColoredTransmittance = false;
 	bool mRenderTerrain = true;
 	GlVec3 mViewDir = { 0.0f, 1.0f, 0.0f };
@@ -199,6 +231,7 @@ private:
 	unsigned int mAerialPerspectivePreviewTex = 0;
 	unsigned int mTerrainHeightmapTex = 0;
 	unsigned int mShadowDepthTex = 0;
+	unsigned int mShadowFallbackTex = 0;
 	unsigned int mShadowFbo = 0;
 	unsigned int mSceneFbo = 0;
 	unsigned int mSceneHdrTex = 0;
@@ -223,4 +256,11 @@ private:
 		0.0f, 0.0f, 1.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f
 	};
+	GpuPassTimer mShadowPassTimer = {};
+	GpuPassTimer mTransmittancePassTimer = {};
+	GpuPassTimer mMultiScatteringPassTimer = {};
+	GpuPassTimer mSkyViewPassTimer = {};
+	GpuPassTimer mAerialPerspectivePassTimer = {};
+	GpuPassTimer mTerrainPassTimer = {};
+	GpuPassTimer mPresentPassTimer = {};
 };

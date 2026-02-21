@@ -16,6 +16,7 @@ struct GlfwUiState
 	int uiMaxSpp = 14;
 	bool uiFastSky = true;
 	bool uiFastAerialPerspective = true;
+	bool uiShadowMaps = true;
 	bool uiColoredTransmittance = false;
 	bool uiRenderTerrain = true;
 	float uiMultiScattering = 1.0f;

@@ -5,31 +5,36 @@ It can be used to compare the new technique proposed in that paper to [Bruneton 
 The path tracer is using a simple and less efficient noise because I was not sure I could share noise code I had before.
 The technique is used to render sky and atmosphere in [Unreal Engine](https://www.unrealengine.com).
 
-Build the solution
-1. Update git submodules (run `git submodule update --init`)
-2. Open the solution 
-3. Make sure you select a windows SDK and platform toolset you have locally for both projects
-4. In Visual Studio, change the _Application_ project _Working Directory_ from `$(ProjectDir)` to `$(SolutionDir)`
-5. Select Application as the startup project, hit F5
+Build with CMake
+1. Update git submodules: `git submodule update --init`
+2. Configure and build with presets:
+- `cmake --preset windows-msvc-release`
+- `cmake --build --preset build-windows-release`
+3. Run:
+- `build/msvc/Release/UnrealEngineSkyAtmosphere.exe`
+
+Alternative presets:
+- `windows-msvc-debug` + `build-windows-debug`
+- `ninja-debug` + `build-ninja-debug`
+- `ninja-release` + `build-ninja-release`
+
+Notes:
+- CMake is now the primary build path; `.sln/.vcxproj` files are no longer required to build or run.
+- Legacy repository-level `Sky.sln`/`Application.vcxproj` files have been removed.
+- Presets enable `SKYATMOS_FETCH_DEPS=ON` by default to fetch GLFW/GLM automatically.
+- Runtime resources are copied next to the executable during build.
 
 Runtime keys:
-- SHIFT + mouse to look around
-- CTRL  + mouse to move the sun around
-- C to capture a screenshot
-- T toggle between ray-marching and path tracing (disables the multiple scattering approximation when switch to path tracing)
-- F5/F9 to save/load a state
+- `Esc`: quit
+- `F1`: toggle pointer lock (when FPS camera is enabled)
+- `W/A/S/D + Space/Left Ctrl`: FPS camera movement
+- `Shift`: movement speed boost
 
-OpenGL/GLFW experimental bootstrap:
-- A minimal OpenGL startup path is available in `Application/WinMainGlfw.cpp`.
-- Toggle it in `Application/BuildConfig.h` (`SKY_OPENGL_EXPERIMENT`).
-- Current OpenGL progress:
-  - GLFW + GLAD + ImGui startup path.
-  - Hillaire ray-marching stages ported in GLSL:
-    - Transmittance LUT generation (`Resources/glsl/transmittance_lut.frag`)
-    - SkyView LUT generation (`Resources/glsl/skyview_lut.frag`)
-    - Direct final ray-marching sky render (`Resources/glsl/render_raymarching_hillaire.frag`)
-    - Sky rendering from SkyView LUT (`Resources/glsl/render_sky_from_lut.frag`) kept as a secondary/debug path
-  - LUTs are previewed in the ImGui panel.
+OpenGL/GLFW runtime:
+- The app entrypoint is `Application/main.cpp`.
+- GLFW + GL3W + ImGui startup path is enabled by default.
+- Hillaire ray-marching stages are in GLSL under `Resources/glsl/`, including LUT generation and final sky rendering.
+- LUTs are previewed in the ImGui panel.
 
 Submodules
 * [imgui](https://github.com/ocornut/imgui) V1.62 supported
@@ -38,10 +43,8 @@ Submodules
 About the code:
 * The code of Eric Bruneton has been copied with authorization from his [2017 implementation](https://ebruneton.github.io/precomputed_atmospheric_scattering/).
 * The code in this repository is provided in hope that later work using it to advance the state of the art will also be shared for every one to use.
-* The code has been built from using the [Dx11Base](https://github.com/sebh/Dx11Base) demo/test platform.
-* RenderSkyRayMarching.hlsl contains the ray marcher building the different LUTs for the new technique.
-* RenderSkyPathTracing.hlsl contains the basic volumetric path tracer. It is matching PBRT and Mitsuba output for [other participating media tests](https://twitter.com/SebHillaire/status/1076144032961757185). It could be improved by really following the Radiance transfert Equation path integral as a loop for each event: currently we only handle participating media and intersection with the planet as a special case.
-* This code has been tested on Windows only with visual studio (no build script generation)
+* The OpenGL implementation lives in `Application/GameGl.cpp` and GLSL shaders under `Resources/glsl/`.
+* This code is currently configured primarily through `CMakeLists.txt`.
 
 Thanks to [Epic Games](https://www.epicgames.com) for allowing the release of this source code.
 

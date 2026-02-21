@@ -12,8 +12,8 @@
 #include <GLFW/glfw3.h>
 
 #include <imgui.h>
-#include "imgui\examples\imgui_impl_glfw.h"
-#include "imgui\examples\imgui_impl_opengl3.h"
+#include "imgui/examples/imgui_impl_glfw.h"
+#include "imgui/examples/imgui_impl_opengl3.h"
 
 namespace
 {
@@ -54,6 +54,7 @@ namespace
 		state.uiMaxSpp = gameGl.getRayMarchMaxSpp();
 		state.uiFastSky = gameGl.getFastSky();
 		state.uiFastAerialPerspective = gameGl.getFastAerialPerspective();
+		state.uiShadowMaps = gameGl.getShadowMapsEnabled();
 		state.uiColoredTransmittance = gameGl.getColoredTransmittance();
 		state.uiRenderTerrain = gameGl.getRenderTerrain();
 		state.uiMultiScattering = gameGl.getMultipleScatteringFactor();
@@ -140,7 +141,7 @@ namespace
 					const double deltaY = mouseY - state.lastMouseY;
 					state.lastMouseX = mouseX;
 					state.lastMouseY = mouseY;
-					state.uiViewYaw += static_cast<float>(deltaX) * state.uiMouseSensitivity;
+					state.uiViewYaw -= static_cast<float>(deltaX) * state.uiMouseSensitivity;
 					state.uiViewPitch -= static_cast<float>(deltaY) * state.uiMouseSensitivity;
 					if (state.uiViewPitch > 1.55f) state.uiViewPitch = 1.55f;
 					if (state.uiViewPitch < -1.55f) state.uiViewPitch = -1.55f;
@@ -162,8 +163,8 @@ namespace
 			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { move.x -= forward.x; move.y -= forward.y; move.z -= forward.z; }
 			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { move.x += right.x; move.y += right.y; move.z += right.z; }
 			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { move.x -= right.x; move.y -= right.y; move.z -= right.z; }
-			if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) { move.x += up.x; move.y += up.y; move.z += up.z; }
-			if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) { move.x -= up.x; move.y -= up.y; move.z -= up.z; }
+			if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) { move.x += up.x; move.y += up.y; move.z += up.z; }
+			if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) { move.x -= up.x; move.y -= up.y; move.z -= up.z; }
 
 			const float moveLen = std::sqrt(move.x * move.x + move.y * move.y + move.z * move.z);
 			if (moveLen > 1e-6f)
@@ -199,6 +200,7 @@ namespace
 		gameGl.setRayMarchMaxSpp(state.uiMaxSpp);
 		gameGl.setFastSky(state.uiFastSky);
 		gameGl.setFastAerialPerspective(state.uiFastAerialPerspective);
+		gameGl.setShadowMapsEnabled(state.uiShadowMaps);
 		gameGl.setColoredTransmittance(state.uiColoredTransmittance && !state.uiFastAerialPerspective);
 		gameGl.setRenderTerrain(state.uiRenderTerrain);
 		gameGl.setMultipleScatteringFactor(state.uiMultiScattering);

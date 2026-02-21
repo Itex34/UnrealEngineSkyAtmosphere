@@ -1,32 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "BuildConfig.h"
-
-#if SKY_OPENGL_EXPERIMENT
-
 #include "GameGl.h"
 #include "GlfwAppLoop.h"
 
-#include <windows.h>
+#include <cstdio>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-#include <glad/glad.h>
+#include <GL/gl3w.h>
 
 #include <imgui.h>
-#include "imgui\examples\imgui_impl_glfw.h"
-#include "imgui\examples\imgui_impl_opengl3.h"
+#include "imgui/examples/imgui_impl_glfw.h"
+#include "imgui/examples/imgui_impl_opengl3.h"
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+int main(int argc, char** argv)
 {
-	(void)hInstance;
-	(void)hPrevInstance;
-	(void)lpCmdLine;
-	(void)nCmdShow;
+	(void)argc;
+	(void)argv;
 
 	if (!glfwInit())
 	{
-		MessageBoxA(nullptr, "glfwInit() failed.", "OpenGL bootstrap error", MB_ICONERROR | MB_OK);
+		std::fprintf(stderr, "glfwInit() failed.\n");
 		return -1;
 	}
 
@@ -41,18 +35,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (!window)
 	{
 		glfwTerminate();
-		MessageBoxA(nullptr, "glfwCreateWindow() failed.", "OpenGL bootstrap error", MB_ICONERROR | MB_OK);
+		std::fprintf(stderr, "glfwCreateWindow() failed.\n");
 		return -1;
 	}
 
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1);
 
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+	if (gl3wInit() != 0)
 	{
 		glfwDestroyWindow(window);
 		glfwTerminate();
-		MessageBoxA(nullptr, "gladLoadGLLoader() failed.", "OpenGL bootstrap error", MB_ICONERROR | MB_OK);
+		std::fprintf(stderr, "gl3wInit() failed.\n");
+		return -1;
+	}
+	if (!gl3wIsSupported(4, 3))
+	{
+		glfwDestroyWindow(window);
+		glfwTerminate();
+		std::fprintf(stderr, "OpenGL 4.3 is not available.\n");
 		return -1;
 	}
 
@@ -66,7 +67,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		ImGui::DestroyContext(imguiContext);
 		glfwDestroyWindow(window);
 		glfwTerminate();
-		MessageBoxA(nullptr, "ImGui OpenGL backend initialization failed.", "OpenGL bootstrap error", MB_ICONERROR | MB_OK);
+		std::fprintf(stderr, "ImGui backend initialization failed.\n");
 		return -1;
 	}
 
@@ -91,5 +92,3 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	glfwTerminate();
 	return 0;
 }
-
-#endif

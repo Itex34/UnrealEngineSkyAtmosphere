@@ -28,7 +28,7 @@ void drawGlfwUi(GameGl& gameGl, GlfwUiState& state)
 	ImGui::SliderFloat("Mouse Sensitivity", &state.uiMouseSensitivity, 0.0005f, 0.01f, "%.4f");
 	ImGui::SliderFloat("View Yaw", &state.uiViewYaw, -3.14159f, 3.14159f);
 	ImGui::SliderFloat("View Pitch", &state.uiViewPitch, -1.55f, 1.55f);
-	ImGui::TextUnformatted("Move: WASD + Q/E, sprint: Shift");
+	ImGui::TextUnformatted("Move: WASD + Space/Left ctrl, sprint: Shift");
 	ImGui::End();
 
 	ImGui::Begin("Atmosphere");
@@ -58,6 +58,7 @@ void drawGlfwUi(GameGl& gameGl, GlfwUiState& state)
 	ImGui::SliderInt("Max SPP", &state.uiMaxSpp, 2, 31);
 	ImGui::Checkbox("FastSky", &state.uiFastSky);
 	ImGui::Checkbox("FastAerialPerspective", &state.uiFastAerialPerspective);
+	ImGui::Checkbox("ShadowMap", &state.uiShadowMaps);
 	if (state.uiFastAerialPerspective)
 	{
 		bool disabledColoredTransmittance = state.uiColoredTransmittance;
@@ -72,6 +73,35 @@ void drawGlfwUi(GameGl& gameGl, GlfwUiState& state)
 	ImGui::Checkbox("Terrain", &state.uiRenderTerrain);
 	ImGui::SliderFloat("Multi-Scattering approx", &state.uiMultiScattering, 0.0f, 1.0f);
 	ImGui::SliderFloat("AP Debug Depth (km)", &state.apDebugDepthKm, 0.0f, 128.0f, "%.2f");
+	ImGui::End();
+
+	ImGui::Begin("Performance");
+	if (!gameGl.hasGpuPassTimings())
+	{
+		ImGui::TextUnformatted("GPU pass timings unavailable on this runtime.");
+	}
+	else
+	{
+		const float shadowMs = gameGl.getShadowPassMs();
+		const float transMs = gameGl.getTransmittancePassMs();
+		const float multiMs = gameGl.getMultiScatteringPassMs();
+		const float skyMs = gameGl.getSkyViewPassMs();
+		const float apMs = gameGl.getAerialPerspectivePassMs();
+		const float terrainMs = gameGl.getTerrainPassMs();
+		const float presentMs = gameGl.getPresentPassMs();
+		const float totalMs = shadowMs + transMs + multiMs + skyMs + apMs + terrainMs + presentMs;
+
+		ImGui::Text("Shadow map: %.3f ms", shadowMs);
+		ImGui::Text("Transmittance LUT: %.3f ms", transMs);
+		ImGui::Text("Multi-scattering LUT: %.3f ms", multiMs);
+		ImGui::Text("SkyView LUT: %.3f ms", skyMs);
+		ImGui::Text("Aerial perspective volume: %.3f ms", apMs);
+		ImGui::Text("Terrain scene: %.3f ms", terrainMs);
+		ImGui::Text("Present composite: %.3f ms", presentMs);
+		ImGui::Separator();
+		ImGui::Text("Total (listed passes): %.3f ms", totalMs);
+		ImGui::TextUnformatted("GL timer queries update with frame latency.");
+	}
 	ImGui::End();
 
 	ImGui::Begin("LUT Preview");
