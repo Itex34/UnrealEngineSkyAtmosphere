@@ -1,0 +1,319 @@
+#version 430 core
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(rgba16f, binding = 0) writeonly uniform image3D u_output_ap;
+
+uniform sampler2D u_transmittance_lut;
+uniform sampler2D u_multiscattering_lut;
+uniform sampler2DShadow u_shadowmap_tex;
+
+uniform vec3 u_sun_direction;
+uniform float u_bottom_radius;
+uniform float u_top_radius;
+uniform vec3 u_rayleigh_scattering;
+uniform vec3 u_mie_scattering;
+uniform vec3 u_mie_extinction;
+uniform vec3 u_mie_absorption;
+uniform vec3 u_absorption_extinction;
+uniform vec3 u_ground_albedo;
+uniform float u_mie_phase_g;
+uniform float u_rayleigh_density_exp_scale;
+uniform float u_mie_density_exp_scale;
+uniform float u_absorption_layer0_width;
+uniform float u_absorption_layer0_linear_term;
+uniform float u_absorption_layer0_constant_term;
+uniform float u_absorption_layer1_linear_term;
+uniform float u_absorption_layer1_constant_term;
+uniform float u_camera_height;
+uniform vec3 u_camera_offset;
+uniform float u_sun_illuminance;
+uniform int u_multi_scattering_lut_res;
+uniform int u_ap_width;
+uniform int u_ap_height;
+uniform int u_ap_depth;
+uniform float u_aspect;
+uniform float u_fov_y_degrees;
+uniform vec3 u_view_forward;
+uniform vec3 u_view_right;
+uniform vec3 u_view_up;
+uniform mat4 u_shadow_view_proj;
+
+const float PI = 3.1415926535897932384626433832795;
+const float PLANET_RADIUS_OFFSET = 0.01;
+const float AP_KM_PER_SLICE = 4.0;
+const float SAMPLE_SEGMENT_T = 0.3;
+
+float saturate1(float v) { return clamp(v, 0.0, 1.0); }
+float safeSqrt(float v) { return sqrt(max(v, 0.0)); }
+
+float fromUnitToSubUvs(float u, float resolution)
+{
+	return (u + 0.5 / resolution) * (resolution / (resolution + 1.0));
+}
+
+float raySphereIntersectNearest(vec3 r0, vec3 rd, vec3 s0, float sR)
+{
+	float a = dot(rd, rd);
+	vec3 s0_r0 = r0 - s0;
+	float b = 2.0 * dot(rd, s0_r0);
+	float c = dot(s0_r0, s0_r0) - (sR * sR);
+	float delta = b * b - 4.0 * a * c;
+	if (delta < 0.0 || a == 0.0)
+	{
+		return -1.0;
+	}
+	float sol0 = (-b - sqrt(delta)) / (2.0 * a);
+	float sol1 = (-b + sqrt(delta)) / (2.0 * a);
+	if (sol0 < 0.0 && sol1 < 0.0) return -1.0;
+	if (sol0 < 0.0) return max(0.0, sol1);
+	if (sol1 < 0.0) return max(0.0, sol0);
+	return max(0.0, min(sol0, sol1));
+}
+
+bool MoveToTopAtmosphere(inout vec3 worldPos, in vec3 worldDir)
+{
+	float viewHeight = length(worldPos);
+	if (viewHeight > u_top_radius)
+	{
+		float tTop = raySphereIntersectNearest(worldPos, worldDir, vec3(0.0), u_top_radius);
+		if (tTop >= 0.0)
+		{
+			vec3 upVector = worldPos / max(viewHeight, 1e-6);
+			vec3 upOffset = upVector * -PLANET_RADIUS_OFFSET;
+			worldPos = worldPos + worldDir * tTop + upOffset;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+void LutTransmittanceParamsToUv(in float viewHeight, in float viewZenithCosAngle, out vec2 uv)
+{
+	float H = safeSqrt(u_top_radius * u_top_radius - u_bottom_radius * u_bottom_radius);
+	float rho = safeSqrt(viewHeight * viewHeight - u_bottom_radius * u_bottom_radius);
+	float discriminant = viewHeight * viewHeight * (viewZenithCosAngle * viewZenithCosAngle - 1.0) + u_top_radius * u_top_radius;
+	float d = max(0.0, (-viewHeight * viewZenithCosAngle + safeSqrt(discriminant)));
+	float d_min = u_top_radius - viewHeight;
+	float d_max = rho + H;
+	float x_mu = (d - d_min) / max(d_max - d_min, 1e-6);
+	float x_r = rho / max(H, 1e-6);
+	uv = clamp(vec2(x_mu, x_r), vec2(0.0), vec2(1.0));
+}
+
+struct MediumSampleRGB
+{
+	vec3 scattering;
+	vec3 absorption;
+	vec3 extinction;
+	vec3 scatteringMie;
+	vec3 scatteringRay;
+};
+
+MediumSampleRGB sampleMediumRGB(in vec3 worldPos)
+{
+	float viewHeight = length(worldPos) - u_bottom_radius;
+	float densityMie = exp(u_mie_density_exp_scale * viewHeight);
+	float densityRay = exp(u_rayleigh_density_exp_scale * viewHeight);
+	float densityOzo = saturate1(viewHeight < u_absorption_layer0_width ?
+		u_absorption_layer0_linear_term * viewHeight + u_absorption_layer0_constant_term :
+		u_absorption_layer1_linear_term * viewHeight + u_absorption_layer1_constant_term);
+
+	MediumSampleRGB s;
+	vec3 scatteringMie = densityMie * u_mie_scattering;
+	vec3 absorptionMie = densityMie * u_mie_absorption;
+	vec3 extinctionMie = densityMie * u_mie_extinction;
+	vec3 scatteringRay = densityRay * u_rayleigh_scattering;
+	vec3 absorptionOzo = densityOzo * u_absorption_extinction;
+
+	s.scatteringMie = scatteringMie;
+	s.scatteringRay = scatteringRay;
+	s.scattering = scatteringMie + scatteringRay;
+	s.absorption = absorptionMie + absorptionOzo;
+	s.extinction = extinctionMie + scatteringRay + absorptionOzo;
+	return s;
+}
+
+float RayleighPhase(float cosTheta)
+{
+	return (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
+}
+
+float CornetteShanksMiePhaseFunction(float g, float cosTheta)
+{
+	float k = 3.0 / (8.0 * PI) * (1.0 - g * g) / (2.0 + g * g);
+	return k * (1.0 + cosTheta * cosTheta) / pow(1.0 + g * g - 2.0 * g * -cosTheta, 1.5);
+}
+
+vec3 GetMultipleScattering(in vec3 worldPos, in float viewZenithCosAngle)
+{
+	float lutRes = float(u_multi_scattering_lut_res);
+	vec2 uv = clamp(
+		vec2(
+			viewZenithCosAngle * 0.5 + 0.5,
+			(length(worldPos) - u_bottom_radius) / max(u_top_radius - u_bottom_radius, 1e-6)),
+		vec2(0.0),
+		vec2(1.0));
+	uv = vec2(fromUnitToSubUvs(uv.x, lutRes), fromUnitToSubUvs(uv.y, lutRes));
+	return textureLod(u_multiscattering_lut, uv, 0.0).rgb;
+}
+
+float getTerrainShadow(in vec3 atmospherePos)
+{
+	vec3 terrainWorldPos = atmospherePos + vec3(0.0, 0.0, -u_bottom_radius);
+	vec4 shadowClip = u_shadow_view_proj * vec4(terrainWorldPos, 1.0);
+	vec3 shadowNdc = shadowClip.xyz / max(shadowClip.w, 1e-6);
+	vec2 shadowUv = vec2(shadowNdc.x * 0.5 + 0.5, shadowNdc.y * 0.5 + 0.5);
+	float shadowDepth = shadowNdc.z * 0.5 + 0.5;
+	if (shadowUv.x < 0.0 || shadowUv.x >= 1.0 || shadowUv.y < 0.0 || shadowUv.y >= 1.0 || shadowDepth < 0.0 || shadowDepth >= 1.0)
+	{
+		return 1.0;
+	}
+	return texture(u_shadowmap_tex, vec3(shadowUv, shadowDepth));
+}
+
+struct AerialIntegrateResult
+{
+	vec3 L;
+	vec3 transmittance;
+};
+
+AerialIntegrateResult IntegrateScatteredLuminanceAP(in vec3 worldPos, in vec3 worldDir, in vec3 sunDir, in float tMaxLimit, in float sampleCountIni)
+{
+	AerialIntegrateResult result;
+	result.L = vec3(0.0);
+	result.transmittance = vec3(1.0);
+
+	vec3 earthO = vec3(0.0);
+	float tBottom = raySphereIntersectNearest(worldPos, worldDir, earthO, u_bottom_radius);
+	float tTop = raySphereIntersectNearest(worldPos, worldDir, earthO, u_top_radius);
+	float tMax = 0.0;
+	if (tBottom < 0.0)
+	{
+		if (tTop < 0.0)
+		{
+			return result;
+		}
+		tMax = tTop;
+	}
+	else if (tTop > 0.0)
+	{
+		tMax = min(tTop, tBottom);
+	}
+	tMax = min(tMax, tMaxLimit);
+	if (tMax <= 0.0)
+	{
+		return result;
+	}
+
+	float sampleCount = max(sampleCountIni, 1.0);
+	float miePhaseValue = CornetteShanksMiePhaseFunction(u_mie_phase_g, -dot(sunDir, worldDir));
+	float rayleighPhaseValue = RayleighPhase(dot(sunDir, worldDir));
+
+	vec3 L = vec3(0.0);
+	vec3 throughput = vec3(1.0);
+	float t = 0.0;
+	const int kMaxSamples = 96;
+	for (int si = 0; si < kMaxSamples; ++si)
+	{
+		float s = float(si);
+		if (s >= sampleCount)
+		{
+			break;
+		}
+
+		float newT = tMax * (s + SAMPLE_SEGMENT_T) / sampleCount;
+		float dt = newT - t;
+		t = newT;
+
+		vec3 P = worldPos + t * worldDir;
+		MediumSampleRGB medium = sampleMediumRGB(P);
+		vec3 sampleOpticalDepth = medium.extinction * dt;
+		vec3 sampleTransmittance = exp(-sampleOpticalDepth);
+
+		float pHeight = length(P);
+		vec3 upVector = P / max(pHeight, 1e-6);
+		float sunZenithCosAngle = dot(sunDir, upVector);
+		vec2 transUv;
+		LutTransmittanceParamsToUv(pHeight, sunZenithCosAngle, transUv);
+		vec3 transmittanceToSun = textureLod(u_transmittance_lut, transUv, 0.0).rgb;
+
+		vec3 phaseTimesScattering = medium.scatteringMie * miePhaseValue + medium.scatteringRay * rayleighPhaseValue;
+		vec3 multiScatteredLuminance = GetMultipleScattering(P, sunZenithCosAngle);
+		float tEarth = raySphereIntersectNearest(P, sunDir, earthO + PLANET_RADIUS_OFFSET * upVector, u_bottom_radius);
+		float earthShadow = (tEarth >= 0.0) ? 0.0 : 1.0;
+		float shadow = getTerrainShadow(P);
+		vec3 S = u_sun_illuminance * (earthShadow * shadow * transmittanceToSun * phaseTimesScattering + multiScatteredLuminance * medium.scattering);
+
+		vec3 Sint = (S - S * sampleTransmittance) / max(medium.extinction, vec3(1e-4));
+		L += throughput * Sint;
+		throughput *= sampleTransmittance;
+	}
+
+	result.L = L;
+	result.transmittance = throughput;
+	return result;
+}
+
+void main()
+{
+	uvec3 gid = gl_GlobalInvocationID;
+	if (gid.x >= uint(u_ap_width) || gid.y >= uint(u_ap_height) || gid.z >= uint(u_ap_depth))
+	{
+		return;
+	}
+
+	vec2 pixPos = vec2(gid.xy) + vec2(0.5);
+	vec2 uv = pixPos / vec2(float(u_ap_width), float(u_ap_height));
+	vec2 ndc = uv * 2.0 - 1.0;
+	float tanHalfFov = tan(radians(u_fov_y_degrees) * 0.5);
+	vec3 worldDir = normalize(
+		u_view_right * (ndc.x * u_aspect * tanHalfFov) +
+		u_view_forward +
+		u_view_up * (ndc.y * tanHalfFov));
+		 
+	vec3 camPos = vec3(u_camera_offset.x, u_camera_offset.y, u_bottom_radius + u_camera_offset.z);
+	vec3 worldPos = camPos;
+	vec3 sunDir = normalize(u_sun_direction);
+
+	float slice = (float(gid.z) + 0.5) / float(u_ap_depth);
+	slice *= slice;
+	slice *= float(u_ap_depth);
+	float tMax = slice * AP_KM_PER_SLICE;
+
+	vec3 newWorldPos = worldPos + tMax * worldDir;
+	float viewHeight = length(newWorldPos);
+	if (viewHeight <= (u_bottom_radius + PLANET_RADIUS_OFFSET))
+	{
+		newWorldPos = normalize(newWorldPos) * (u_bottom_radius + PLANET_RADIUS_OFFSET + 0.001);
+		worldDir = normalize(newWorldPos - camPos);
+		tMax = length(newWorldPos - camPos);
+	}
+	float tMaxMax = tMax;
+
+	viewHeight = length(worldPos);
+	if (viewHeight >= u_top_radius)
+	{
+		vec3 prevWorldPos = worldPos;
+		if (!MoveToTopAtmosphere(worldPos, worldDir))
+		{
+			imageStore(u_output_ap, ivec3(gid), vec4(0.0, 0.0, 0.0, 1.0));
+			return;
+		}
+		float lengthToAtmosphere = length(prevWorldPos - worldPos);
+		if (tMaxMax < lengthToAtmosphere)
+		{
+			imageStore(u_output_ap, ivec3(gid), vec4(0.0, 0.0, 0.0, 1.0));
+			return;
+		}
+		tMaxMax = max(0.0, tMaxMax - lengthToAtmosphere);
+	}
+
+	float sampleCountIni = max(1.0, (float(gid.z) + 1.0) * 2.0);
+	AerialIntegrateResult ss = IntegrateScatteredLuminanceAP(worldPos, worldDir, sunDir, tMaxMax, sampleCountIni);
+	float transmittance = dot(ss.transmittance, vec3(1.0 / 3.0));
+	imageStore(u_output_ap, ivec3(gid), vec4(ss.L, 1.0 - transmittance));
+}

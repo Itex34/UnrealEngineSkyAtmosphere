@@ -1,0 +1,282 @@
+#version 430 core
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(rgba32f, binding = 0) writeonly uniform image2D u_output_lut;
+
+uniform sampler2D u_transmittance_lut;
+
+uniform float u_bottom_radius;
+uniform float u_top_radius;
+uniform vec3 u_rayleigh_scattering;
+uniform vec3 u_mie_scattering;
+uniform vec3 u_mie_extinction;
+uniform vec3 u_mie_absorption;
+uniform vec3 u_absorption_extinction;
+uniform vec3 u_ground_albedo;
+uniform float u_rayleigh_density_exp_scale;
+uniform float u_mie_density_exp_scale;
+uniform float u_absorption_layer0_width;
+uniform float u_absorption_layer0_linear_term;
+uniform float u_absorption_layer0_constant_term;
+uniform float u_absorption_layer1_linear_term;
+uniform float u_absorption_layer1_constant_term;
+uniform float u_multiple_scattering_factor;
+uniform int u_multi_scattering_lut_res;
+uniform int u_transmittance_width;
+uniform int u_transmittance_height;
+
+const float PI = 3.1415926535897932384626433832795;
+const float PLANET_RADIUS_OFFSET = 0.01;
+const float SAMPLE_SEGMENT_T = 0.3;
+
+shared vec3 g_multi_scat_as_1_shared[64];
+shared vec3 g_l_shared[64];
+
+float saturate1(float v) { return clamp(v, 0.0, 1.0); }
+float safeSqrt(float v) { return sqrt(max(v, 0.0)); }
+
+float fromSubUvsToUnit(float u, float resolution)
+{
+	return (u - 0.5 / resolution) * (resolution / (resolution - 1.0));
+}
+
+float raySphereIntersectNearest(vec3 r0, vec3 rd, vec3 s0, float sR)
+{
+	float a = dot(rd, rd);
+	vec3 s0_r0 = r0 - s0;
+	float b = 2.0 * dot(rd, s0_r0);
+	float c = dot(s0_r0, s0_r0) - (sR * sR);
+	float delta = b * b - 4.0 * a * c;
+	if (delta < 0.0 || a == 0.0)
+	{
+		return -1.0;
+	}
+	float sol0 = (-b - sqrt(delta)) / (2.0 * a);
+	float sol1 = (-b + sqrt(delta)) / (2.0 * a);
+	if (sol0 < 0.0 && sol1 < 0.0) return -1.0;
+	if (sol0 < 0.0) return max(0.0, sol1);
+	if (sol1 < 0.0) return max(0.0, sol0);
+	return max(0.0, min(sol0, sol1));
+}
+
+void LutTransmittanceParamsToUv(in float viewHeight, in float viewZenithCosAngle, out vec2 uv)
+{
+	float H = safeSqrt(u_top_radius * u_top_radius - u_bottom_radius * u_bottom_radius);
+	float rho = safeSqrt(viewHeight * viewHeight - u_bottom_radius * u_bottom_radius);
+	float discriminant = viewHeight * viewHeight * (viewZenithCosAngle * viewZenithCosAngle - 1.0) + u_top_radius * u_top_radius;
+	float d = max(0.0, (-viewHeight * viewZenithCosAngle + safeSqrt(discriminant)));
+	float d_min = u_top_radius - viewHeight;
+	float d_max = rho + H;
+	float x_mu = (d - d_min) / max(d_max - d_min, 1e-6);
+	float x_r = rho / max(H, 1e-6);
+	uv = vec2(x_mu, x_r);
+}
+
+struct MediumSampleRGB
+{
+	vec3 scattering;
+	vec3 absorption;
+	vec3 extinction;
+};
+
+MediumSampleRGB sampleMediumRGB(in vec3 worldPos)
+{
+	float viewHeight = length(worldPos) - u_bottom_radius;
+	float densityMie = exp(u_mie_density_exp_scale * viewHeight);
+	float densityRay = exp(u_rayleigh_density_exp_scale * viewHeight);
+	float densityOzo = saturate1(viewHeight < u_absorption_layer0_width ?
+		u_absorption_layer0_linear_term * viewHeight + u_absorption_layer0_constant_term :
+		u_absorption_layer1_linear_term * viewHeight + u_absorption_layer1_constant_term);
+
+	MediumSampleRGB s;
+	vec3 scatteringMie = densityMie * u_mie_scattering;
+	vec3 absorptionMie = densityMie * u_mie_absorption;
+	vec3 extinctionMie = densityMie * u_mie_extinction;
+	vec3 scatteringRay = densityRay * u_rayleigh_scattering;
+	vec3 absorptionOzo = densityOzo * u_absorption_extinction;
+
+	s.scattering = scatteringMie + scatteringRay;
+	s.absorption = absorptionMie + absorptionOzo;
+	s.extinction = extinctionMie + scatteringRay + absorptionOzo;
+	return s;
+}
+
+struct SingleScatteringResult
+{
+	vec3 L;
+	vec3 multiScatAs1;
+};
+
+SingleScatteringResult IntegrateScatteredLuminanceMS(in vec3 worldPos, in vec3 worldDir, in vec3 sunDir)
+{
+	SingleScatteringResult result;
+	result.L = vec3(0.0);
+	result.multiScatAs1 = vec3(0.0);
+
+	vec3 earthO = vec3(0.0);
+	float tBottom = raySphereIntersectNearest(worldPos, worldDir, earthO, u_bottom_radius);
+	float tTop = raySphereIntersectNearest(worldPos, worldDir, earthO, u_top_radius);
+	float tMax = 0.0;
+	if (tBottom < 0.0)
+	{
+		if (tTop < 0.0)
+		{
+			return result;
+		}
+		tMax = tTop;
+	}
+	else if (tTop > 0.0)
+	{
+		tMax = min(tTop, tBottom);
+	}
+
+	const float sampleCount = 20.0;
+	float dt = tMax / sampleCount;
+	const float uniformPhase = 1.0 / (4.0 * PI);
+
+	vec3 L = vec3(0.0);
+	vec3 throughput = vec3(1.0);
+	float t = 0.0;
+	for (int si = 0; si < 20; ++si)
+	{
+		float newT = tMax * (float(si) + SAMPLE_SEGMENT_T) / sampleCount;
+		dt = newT - t;
+		t = newT;
+
+		vec3 P = worldPos + t * worldDir;
+		MediumSampleRGB medium = sampleMediumRGB(P);
+		vec3 sampleOpticalDepth = medium.extinction * dt;
+		vec3 sampleTransmittance = exp(-sampleOpticalDepth);
+
+		float pHeight = length(P);
+		vec3 upVector = P / max(pHeight, 1e-6);
+		float sunZenithCosAngle = dot(sunDir, upVector);
+		vec2 transUv;
+		LutTransmittanceParamsToUv(pHeight, sunZenithCosAngle, transUv);
+		vec3 transmittanceToSun = textureLod(u_transmittance_lut, transUv, 0.0).rgb;
+
+		float tEarth = raySphereIntersectNearest(P, sunDir, earthO + PLANET_RADIUS_OFFSET * upVector, u_bottom_radius);
+		float earthShadow = (tEarth >= 0.0) ? 0.0 : 1.0;
+
+		vec3 phaseTimesScattering = medium.scattering * uniformPhase;
+		vec3 S = earthShadow * transmittanceToSun * phaseTimesScattering;
+
+		vec3 extinctionSafe = max(medium.extinction, vec3(1e-4));
+		vec3 Sint = (S - S * sampleTransmittance) / extinctionSafe;
+		L += throughput * Sint;
+
+		vec3 MS = medium.scattering;
+		vec3 MSint = (MS - MS * sampleTransmittance) / extinctionSafe;
+		result.multiScatAs1 += throughput * MSint;
+		throughput *= sampleTransmittance;
+	}
+
+	if (tMax == tBottom && tBottom > 0.0)
+	{
+		vec3 P = worldPos + tBottom * worldDir;
+		float pHeight = length(P);
+		vec3 upVector = P / max(pHeight, 1e-6);
+		float sunZenithCosAngle = dot(sunDir, upVector);
+		vec2 transUv;
+		LutTransmittanceParamsToUv(pHeight, sunZenithCosAngle, transUv);
+		vec3 transmittanceToSun = textureLod(u_transmittance_lut, transUv, 0.0).rgb;
+		float NdotL = max(dot(normalize(upVector), normalize(sunDir)), 0.0);
+		L += transmittanceToSun * throughput * NdotL * u_ground_albedo / PI;
+	}
+
+	result.L = L;
+	return result;
+}
+
+void main()
+{
+	uint lane = gl_LocalInvocationID.y * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
+	ivec2 pixel = ivec2(gl_WorkGroupID.xy);
+
+	vec2 pixPos = vec2(pixel) + vec2(0.5);
+	float lutSize = float(u_multi_scattering_lut_res);
+	vec2 uv = pixPos / lutSize;
+	uv = vec2(fromSubUvsToUnit(uv.x, lutSize), fromSubUvsToUnit(uv.y, lutSize));
+
+	float cosSunZenithAngle = uv.x * 2.0 - 1.0;
+	vec3 sunDir = vec3(0.0, safeSqrt(1.0 - cosSunZenithAngle * cosSunZenithAngle), cosSunZenithAngle);
+	float viewHeight = u_bottom_radius + saturate1(uv.y + PLANET_RADIUS_OFFSET) * (u_top_radius - u_bottom_radius - PLANET_RADIUS_OFFSET);
+	vec3 worldPos = vec3(0.0, 0.0, viewHeight);
+
+	const uint SQRTSAMPLECOUNT = 8u;
+	float sqrtSample = float(SQRTSAMPLECOUNT);
+	uint gridY = lane / SQRTSAMPLECOUNT;
+	uint gridX = lane - gridY * SQRTSAMPLECOUNT;
+	float i = 0.5 + float(gridY);
+	float j = 0.5 + float(gridX);
+
+	float randA = i / sqrtSample;
+	float randB = j / sqrtSample;
+	float theta = 2.0 * PI * randA;
+	float phi = acos(1.0 - 2.0 * randB);
+	float cosPhi = cos(phi);
+	float sinPhi = sin(phi);
+	float cosTheta = cos(theta);
+	float sinTheta = sin(theta);
+	vec3 worldDir = vec3(cosTheta * sinPhi, sinTheta * sinPhi, cosPhi);
+
+	SingleScatteringResult ss = IntegrateScatteredLuminanceMS(worldPos, worldDir, sunDir);
+	const float sphereSolidAngle = 4.0 * PI;
+	float normalization = sphereSolidAngle / (sqrtSample * sqrtSample);
+	g_multi_scat_as_1_shared[lane] = ss.multiScatAs1 * normalization;
+	g_l_shared[lane] = ss.L * normalization;
+
+	barrier();
+
+	if (lane < 32u)
+	{
+		g_multi_scat_as_1_shared[lane] += g_multi_scat_as_1_shared[lane + 32u];
+		g_l_shared[lane] += g_l_shared[lane + 32u];
+	}
+	barrier();
+	if (lane < 16u)
+	{
+		g_multi_scat_as_1_shared[lane] += g_multi_scat_as_1_shared[lane + 16u];
+		g_l_shared[lane] += g_l_shared[lane + 16u];
+	}
+	barrier();
+	if (lane < 8u)
+	{
+		g_multi_scat_as_1_shared[lane] += g_multi_scat_as_1_shared[lane + 8u];
+		g_l_shared[lane] += g_l_shared[lane + 8u];
+	}
+	barrier();
+	if (lane < 4u)
+	{
+		g_multi_scat_as_1_shared[lane] += g_multi_scat_as_1_shared[lane + 4u];
+		g_l_shared[lane] += g_l_shared[lane + 4u];
+	}
+	barrier();
+	if (lane < 2u)
+	{
+		g_multi_scat_as_1_shared[lane] += g_multi_scat_as_1_shared[lane + 2u];
+		g_l_shared[lane] += g_l_shared[lane + 2u];
+	}
+	barrier();
+	if (lane < 1u)
+	{
+		g_multi_scat_as_1_shared[lane] += g_multi_scat_as_1_shared[lane + 1u];
+		g_l_shared[lane] += g_l_shared[lane + 1u];
+	}
+	barrier();
+
+	if (lane > 0u)
+	{
+		return;
+	}
+
+	float isotropicPhase = 1.0 / sphereSolidAngle;
+	vec3 multiScatAs1 = g_multi_scat_as_1_shared[0] * isotropicPhase;
+	vec3 inScatteredLuminance = g_l_shared[0] * isotropicPhase;
+	vec3 r = clamp(multiScatAs1, vec3(0.0), vec3(0.999));
+	vec3 sumSeries = 1.0 / (1.0 - r);
+	vec3 L = inScatteredLuminance * sumSeries;
+
+	imageStore(u_output_lut, pixel, vec4(u_multiple_scattering_factor * L, 1.0));
+}
