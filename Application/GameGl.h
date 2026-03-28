@@ -53,6 +53,11 @@ public:
 	void resize(int width, int height);
 	void render();
 	void setAerialPerspectiveDebugDepthKm(float depthKm) { mAerialPerspectiveDebugDepthKm = depthKm; }
+	void setPostTonemapEnabled(bool enabled) { mPostTonemapEnabled = enabled; }
+	void setPostTonemapMode(int mode);
+	void setPostExposure(float exposure);
+	void setPostGammaEnabled(bool enabled) { mPostGammaEnabled = enabled; }
+	void setPostOutputGamma(float gamma);
 	void setCameraHeight(float value);
 	void setCameraForward(float value);
 	void setCameraOffset(const GlVec3& value);
@@ -97,6 +102,11 @@ public:
 	float getCameraHeight() const { return mCameraHeight; }
 	float getCameraForward() const { return mCameraForward; }
 	GlVec3 getCameraOffset() const { return mCameraOffset; }
+	bool getPostTonemapEnabled() const { return mPostTonemapEnabled; }
+	int getPostTonemapMode() const { return mPostTonemapMode; }
+	float getPostExposure() const { return mPostExposure; }
+	bool getPostGammaEnabled() const { return mPostGammaEnabled; }
+	float getPostOutputGamma() const { return mPostOutputGamma; }
 	float getViewYaw() const { return mViewYaw; }
 	float getViewPitch() const { return mViewPitch; }
 	GlVec3 getViewDir() const { return mViewDir; }
@@ -204,6 +214,11 @@ private:
 	float mMultipleScatteringFactor = 1.0f;
 	float mCameraHeight = 0.5f;
 	float mCameraForward = -1.0f;
+	bool mPostTonemapEnabled = true;
+	int mPostTonemapMode = 0;
+	float mPostExposure = 10.0f;
+	bool mPostGammaEnabled = true;
+	float mPostOutputGamma = 2.2f;
 	float mViewYaw = 0.0f;
 	float mViewPitch = 0.0f;
 	float mSunIlluminanceScale = 1.0f;

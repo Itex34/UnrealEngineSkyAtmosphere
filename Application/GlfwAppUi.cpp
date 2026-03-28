@@ -73,6 +73,14 @@ void drawGlfwUi(GameGl& gameGl, GlfwUiState& state)
 	ImGui::Checkbox("Terrain", &state.uiRenderTerrain);
 	ImGui::SliderFloat("Multi-Scattering approx", &state.uiMultiScattering, 0.0f, 1.0f);
 	ImGui::SliderFloat("AP Debug Depth (km)", &state.apDebugDepthKm, 0.0f, 128.0f, "%.2f");
+	ImGui::Separator();
+	ImGui::TextUnformatted("Postprocess");
+	ImGui::Checkbox("Tonemap", &state.uiPostTonemapEnabled);
+	const char* tonemapModes[] = { "Exponential", "AgX Base", "AgX Punchy" };
+	ImGui::Combo("Tonemap Op", &state.uiTonemapMode, tonemapModes, IM_ARRAYSIZE(tonemapModes));
+	ImGui::SliderFloat("Exposure", &state.uiPostExposure, 0.0f, 64.0f, "%.2f");
+	ImGui::Checkbox("Gamma Encode", &state.uiPostGammaEnabled);
+	ImGui::SliderFloat("Output Gamma", &state.uiPostOutputGamma, 1.0f, 3.0f, "%.2f");
 	ImGui::End();
 
 	ImGui::Begin("Performance");

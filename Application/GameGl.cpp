@@ -212,6 +212,26 @@ void GameGl::setCameraHeight(float value)
 	}
 }
 
+void GameGl::setPostTonemapMode(int mode)
+{
+	int clamped = mode;
+	if (clamped < 0) clamped = 0;
+	if (clamped > 2) clamped = 2;
+	mPostTonemapMode = clamped;
+}
+
+void GameGl::setPostExposure(float exposure)
+{
+	const float clamped = exposure < 0.0f ? 0.0f : exposure;
+	mPostExposure = clamped;
+}
+
+void GameGl::setPostOutputGamma(float gamma)
+{
+	const float clamped = gamma < 1.0f ? 1.0f : gamma;
+	mPostOutputGamma = clamped;
+}
+
 void GameGl::setCameraForward(float value)
 {
 	if (std::fabs(mCameraForward - value) > 1e-6f)
@@ -1768,6 +1788,16 @@ void GameGl::renderPresent()
 	glBindTexture(GL_TEXTURE_2D, mFinalHdrTex);
 	const int hdrLoc = getUniformLocationCached(mPostProcessProgram, "u_hdr_tex");
 	if (hdrLoc >= 0) glUniform1i(hdrLoc, 0);
+	const int tonemapEnabledLoc = getUniformLocationCached(mPostProcessProgram, "u_enable_tonemap");
+	if (tonemapEnabledLoc >= 0) glUniform1i(tonemapEnabledLoc, mPostTonemapEnabled ? 1 : 0);
+	const int tonemapModeLoc = getUniformLocationCached(mPostProcessProgram, "u_tonemap_mode");
+	if (tonemapModeLoc >= 0) glUniform1i(tonemapModeLoc, mPostTonemapMode);
+	const int exposureLoc = getUniformLocationCached(mPostProcessProgram, "u_exposure");
+	if (exposureLoc >= 0) glUniform1f(exposureLoc, mPostExposure);
+	const int gammaEnabledLoc = getUniformLocationCached(mPostProcessProgram, "u_enable_gamma");
+	if (gammaEnabledLoc >= 0) glUniform1i(gammaEnabledLoc, mPostGammaEnabled ? 1 : 0);
+	const int gammaLoc = getUniformLocationCached(mPostProcessProgram, "u_output_gamma");
+	if (gammaLoc >= 0) glUniform1f(gammaLoc, mPostOutputGamma);
 	glBindVertexArray(mFullscreenVao);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 

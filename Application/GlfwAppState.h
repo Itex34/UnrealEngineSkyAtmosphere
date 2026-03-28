@@ -10,6 +10,11 @@ struct GlfwUiState
 	bool uiLutPreviewVisible = true;
 	float uiCamHeight = 0.5f;
 	float uiCamForward = -1.0f;
+	bool uiPostTonemapEnabled = true;
+	int uiTonemapMode = 0;
+	float uiPostExposure = 10.0f;
+	bool uiPostGammaEnabled = true;
+	float uiPostOutputGamma = 2.2f;
 	float uiIllumScale = 1.0f;
 	float uiSunYaw = 0.0f;
 	float uiSunPitch = 0.45f;
