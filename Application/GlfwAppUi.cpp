@@ -73,14 +73,6 @@ void drawGlfwUi(GameGl& gameGl, GlfwUiState& state)
 	ImGui::Checkbox("Terrain", &state.uiRenderTerrain);
 	ImGui::SliderFloat("Multi-Scattering approx", &state.uiMultiScattering, 0.0f, 1.0f);
 	ImGui::SliderFloat("AP Debug Depth (km)", &state.apDebugDepthKm, 0.0f, 128.0f, "%.2f");
-	ImGui::Separator();
-	ImGui::TextUnformatted("Postprocess");
-	ImGui::Checkbox("Tonemap", &state.uiPostTonemapEnabled);
-	const char* tonemapModes[] = { "Exponential", "AgX Base", "AgX Punchy" };
-	ImGui::Combo("Tonemap Op", &state.uiTonemapMode, tonemapModes, IM_ARRAYSIZE(tonemapModes));
-	ImGui::SliderFloat("Exposure", &state.uiPostExposure, 0.0f, 64.0f, "%.2f");
-	ImGui::Checkbox("Gamma Encode", &state.uiPostGammaEnabled);
-	ImGui::SliderFloat("Output Gamma", &state.uiPostOutputGamma, 1.0f, 3.0f, "%.2f");
 	ImGui::End();
 
 	ImGui::Begin("Performance");
@@ -112,23 +104,19 @@ void drawGlfwUi(GameGl& gameGl, GlfwUiState& state)
 	}
 	ImGui::End();
 
-	const bool lutPreviewVisible = ImGui::Begin("LUT Preview");
-	state.uiLutPreviewVisible = lutPreviewVisible;
-	if (lutPreviewVisible)
-	{
-		ImGui::TextUnformatted("Transmittance LUT");
-		ImGui::Image((void*)(intptr_t)gameGl.getTransmittanceTexture(), ImVec2(512.0f, 128.0f));
-		ImGui::TextUnformatted("Multi-Scattering LUT");
-		ImGui::SliderFloat("MS LUT exposure", &state.msPreviewExposure, 1.0f, 256.0f, "%.1f");
-		ImGui::Image((void*)(intptr_t)gameGl.getMultipleScatteringPreviewTexture(), ImVec2(256.0f, 256.0f));
-		ImGui::TextUnformatted("SkyView LUT");
-		ImGui::Image((void*)(intptr_t)gameGl.getSkyViewTexture(), ImVec2(512.0f, 288.0f));
-		ImGui::TextUnformatted("Aerial Perspective LUT (slice)");
-		const int apSliceCount = gameGl.getAerialPerspectiveDepthSliceCount();
-		const int apSliceMax = (apSliceCount > 0) ? (apSliceCount - 1) : 0;
-		ImGui::SliderInt("AP Slice", &state.apPreviewSlice, 0, apSliceMax);
-		ImGui::SliderFloat("AP LUT exposure", &state.apPreviewExposure, 1.0f, 256.0f, "%.1f");
-		ImGui::Image((void*)(intptr_t)gameGl.getAerialPerspectivePreviewTexture(), ImVec2(256.0f, 256.0f));
-	}
+	ImGui::Begin("LUT Preview");
+	ImGui::TextUnformatted("Transmittance LUT");
+	ImGui::Image((void*)(intptr_t)gameGl.getTransmittanceTexture(), ImVec2(512.0f, 128.0f));
+	ImGui::TextUnformatted("Multi-Scattering LUT");
+	ImGui::SliderFloat("MS LUT exposure", &state.msPreviewExposure, 1.0f, 256.0f, "%.1f");
+	ImGui::Image((void*)(intptr_t)gameGl.getMultipleScatteringPreviewTexture(), ImVec2(256.0f, 256.0f));
+	ImGui::TextUnformatted("SkyView LUT");
+	ImGui::Image((void*)(intptr_t)gameGl.getSkyViewTexture(), ImVec2(512.0f, 288.0f));
+	ImGui::TextUnformatted("Aerial Perspective LUT (slice)");
+	const int apSliceCount = gameGl.getAerialPerspectiveDepthSliceCount();
+	const int apSliceMax = (apSliceCount > 0) ? (apSliceCount - 1) : 0;
+	ImGui::SliderInt("AP Slice", &state.apPreviewSlice, 0, apSliceMax);
+	ImGui::SliderFloat("AP LUT exposure", &state.apPreviewExposure, 1.0f, 256.0f, "%.1f");
+	ImGui::Image((void*)(intptr_t)gameGl.getAerialPerspectivePreviewTexture(), ImVec2(256.0f, 256.0f));
 	ImGui::End();
 }

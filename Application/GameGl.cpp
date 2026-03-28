@@ -180,28 +180,6 @@ void GameGl::markSkyAndApDirty()
 	mAerialPerspectiveDirty = true;
 }
 
-int GameGl::getUniformLocationCached(unsigned int program, const char* name)
-{
-	if (program == 0 || name == nullptr || name[0] == '\0')
-	{
-		return -1;
-	}
-	auto& perProgram = mUniformLocationCache[program];
-	const auto it = perProgram.find(name);
-	if (it != perProgram.end())
-	{
-		return it->second;
-	}
-	const int loc = glGetUniformLocation(program, name);
-	perProgram.emplace(name, loc);
-	return loc;
-}
-
-void GameGl::clearUniformLocationCache()
-{
-	mUniformLocationCache.clear();
-}
-
 void GameGl::setCameraHeight(float value)
 {
 	if (std::fabs(mCameraHeight - value) > 1e-6f)
@@ -210,26 +188,6 @@ void GameGl::setCameraHeight(float value)
 		mCameraPosition.z = value;
 		markSkyAndApDirty();
 	}
-}
-
-void GameGl::setPostTonemapMode(int mode)
-{
-	int clamped = mode;
-	if (clamped < 0) clamped = 0;
-	if (clamped > 2) clamped = 2;
-	mPostTonemapMode = clamped;
-}
-
-void GameGl::setPostExposure(float exposure)
-{
-	const float clamped = exposure < 0.0f ? 0.0f : exposure;
-	mPostExposure = clamped;
-}
-
-void GameGl::setPostOutputGamma(float gamma)
-{
-	const float clamped = gamma < 1.0f ? 1.0f : gamma;
-	mPostOutputGamma = clamped;
 }
 
 void GameGl::setCameraForward(float value)
@@ -293,7 +251,6 @@ void GameGl::setSunYaw(float value)
 	if (std::fabs(mSunYaw - value) > 1e-6f)
 	{
 		mSunYaw = value;
-		mShadowMapDirty = true;
 		markSkyAndApDirty();
 	}
 }
@@ -303,7 +260,6 @@ void GameGl::setSunPitch(float value)
 	if (std::fabs(mSunPitch - value) > 1e-6f)
 	{
 		mSunPitch = value;
-		mShadowMapDirty = true;
 		markSkyAndApDirty();
 	}
 }
@@ -968,7 +924,6 @@ bool GameGl::createSceneResources()
 
 void GameGl::destroyPrograms()
 {
-	clearUniformLocationCache();
 	if (mPostProcessProgram != 0)
 	{
 		glDeleteProgram(mPostProcessProgram);
@@ -1198,17 +1153,17 @@ void GameGl::uploadAtmosphereUniforms(unsigned int program)
 
 	const auto set1f = [&](const char* name, float value)
 	{
-		const int loc = getUniformLocationCached(program, name);
+		const int loc = glGetUniformLocation(program, name);
 		if (loc >= 0) glUniform1f(loc, value);
 	};
 	const auto set1i = [&](const char* name, int value)
 	{
-		const int loc = getUniformLocationCached(program, name);
+		const int loc = glGetUniformLocation(program, name);
 		if (loc >= 0) glUniform1i(loc, value);
 	};
 	const auto set3f = [&](const char* name, const GlVec3& v)
 	{
-		const int loc = getUniformLocationCached(program, name);
+		const int loc = glGetUniformLocation(program, name);
 		if (loc >= 0) glUniform3f(loc, v.x, v.y, v.z);
 	};
 
@@ -1279,7 +1234,7 @@ void GameGl::renderMultipleScatteringLut()
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, mTransmittanceTex);
-	const int transLoc = getUniformLocationCached(mMultiScatteringProgram, "u_transmittance_lut");
+	const int transLoc = glGetUniformLocation(mMultiScatteringProgram, "u_transmittance_lut");
 	if (transLoc >= 0) glUniform1i(transLoc, 0);
 
 	glBindImageTexture(0, mMultiScatteringTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
@@ -1301,10 +1256,7 @@ void GameGl::renderMultipleScatteringLut()
 	glUseProgram(0);
 	endGpuPassTimer(mMultiScatteringPassTimer);
 
-	if (mLutPreviewUpdatesEnabled)
-	{
-		updateMultiScatteringDebugStats();
-	}
+	updateMultiScatteringDebugStats();
 }
 
 void GameGl::updateMultiScatteringDebugStats()
@@ -1350,24 +1302,24 @@ void GameGl::renderAerialPerspectiveVolume()
 	beginGpuPassTimer(mAerialPerspectivePassTimer);
 	glUseProgram(mAerialPerspectiveProgram);
 	uploadAtmosphereUniforms(mAerialPerspectiveProgram);
-	const int aspectLoc = getUniformLocationCached(mAerialPerspectiveProgram, "u_aspect");
+	const int aspectLoc = glGetUniformLocation(mAerialPerspectiveProgram, "u_aspect");
 	if (aspectLoc >= 0) glUniform1f(aspectLoc, static_cast<float>(mBackbufferWidth) / static_cast<float>(mBackbufferHeight));
-	const int fovLoc = getUniformLocationCached(mAerialPerspectiveProgram, "u_fov_y_degrees");
+	const int fovLoc = glGetUniformLocation(mAerialPerspectiveProgram, "u_fov_y_degrees");
 	if (fovLoc >= 0) glUniform1f(fovLoc, kMainCameraFovYDegrees);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, mTransmittanceTex);
-	const int transLoc = getUniformLocationCached(mAerialPerspectiveProgram, "u_transmittance_lut");
+	const int transLoc = glGetUniformLocation(mAerialPerspectiveProgram, "u_transmittance_lut");
 	if (transLoc >= 0) glUniform1i(transLoc, 0);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, mMultiScatteringTex);
-	const int multiLoc = getUniformLocationCached(mAerialPerspectiveProgram, "u_multiscattering_lut");
+	const int multiLoc = glGetUniformLocation(mAerialPerspectiveProgram, "u_multiscattering_lut");
 	if (multiLoc >= 0) glUniform1i(multiLoc, 1);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, mShadowMapsEnabled ? mShadowDepthTex : mShadowFallbackTex);
-	const int shadowTexLoc = getUniformLocationCached(mAerialPerspectiveProgram, "u_shadowmap_tex");
+	const int shadowTexLoc = glGetUniformLocation(mAerialPerspectiveProgram, "u_shadowmap_tex");
 	if (shadowTexLoc >= 0) glUniform1i(shadowTexLoc, 2);
-	const int shadowViewProjLoc = getUniformLocationCached(mAerialPerspectiveProgram, "u_shadow_view_proj");
+	const int shadowViewProjLoc = glGetUniformLocation(mAerialPerspectiveProgram, "u_shadow_view_proj");
 	if (shadowViewProjLoc >= 0) glUniformMatrix4fv(shadowViewProjLoc, 1, GL_FALSE, mShadowViewProj);
 
 	glBindImageTexture(0, mAerialPerspectiveTex, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
@@ -1395,11 +1347,8 @@ void GameGl::renderAerialPerspectiveVolume()
 	glUseProgram(0);
 	endGpuPassTimer(mAerialPerspectivePassTimer);
 
-	if (mLutPreviewUpdatesEnabled)
-	{
-		copyAerialPerspectivePreviewSlice();
-		updateAerialPerspectiveDebugStats();
-	}
+	copyAerialPerspectivePreviewSlice();
+	updateAerialPerspectiveDebugStats();
 }
 
 void GameGl::copyAerialPerspectivePreviewSlice()
@@ -1558,11 +1507,11 @@ void GameGl::renderSkyViewLut()
 	uploadAtmosphereUniforms(mSkyViewProgram);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, mTransmittanceTex);
-	const int transLoc = getUniformLocationCached(mSkyViewProgram, "u_transmittance_lut");
+	const int transLoc = glGetUniformLocation(mSkyViewProgram, "u_transmittance_lut");
 	if (transLoc >= 0) glUniform1i(transLoc, 0);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, mMultiScatteringTex);
-	const int multiLoc = getUniformLocationCached(mSkyViewProgram, "u_multiscattering_lut");
+	const int multiLoc = glGetUniformLocation(mSkyViewProgram, "u_multiscattering_lut");
 	if (multiLoc >= 0) glUniform1i(multiLoc, 1);
 	glBindVertexArray(mFullscreenVao);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1579,7 +1528,7 @@ void GameGl::renderSkyViewLut()
 
 void GameGl::renderShadowMap()
 {
-	if (!mShadowMapsEnabled || !mShadowMapDirty)
+	if (!mShadowMapsEnabled)
 	{
 		return;
 	}
@@ -1600,18 +1549,17 @@ void GameGl::renderShadowMap()
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		endGpuPassTimer(mShadowPassTimer);
-		mShadowMapDirty = false;
 		return;
 	}
 
 	glUseProgram(mTerrainShadowProgram);
-	const int terrainResLoc = getUniformLocationCached(mTerrainShadowProgram, "u_terrain_resolution");
+	const int terrainResLoc = glGetUniformLocation(mTerrainShadowProgram, "u_terrain_resolution");
 	if (terrainResLoc >= 0) glUniform1i(terrainResLoc, 512);
-	const int viewProjLoc = getUniformLocationCached(mTerrainShadowProgram, "u_view_proj");
+	const int viewProjLoc = glGetUniformLocation(mTerrainShadowProgram, "u_view_proj");
 	if (viewProjLoc >= 0) glUniformMatrix4fv(viewProjLoc, 1, GL_FALSE, mShadowViewProj);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, mTerrainHeightmapTex);
-	const int heightmapLoc = getUniformLocationCached(mTerrainShadowProgram, "u_heightmap_tex");
+	const int heightmapLoc = glGetUniformLocation(mTerrainShadowProgram, "u_heightmap_tex");
 	if (heightmapLoc >= 0) glUniform1i(heightmapLoc, 0);
 
 	glEnable(GL_POLYGON_OFFSET_FILL);
@@ -1625,7 +1573,6 @@ void GameGl::renderShadowMap()
 	glUseProgram(0);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	endGpuPassTimer(mShadowPassTimer);
-	mShadowMapDirty = false;
 }
 
 void GameGl::renderTerrainScene()
@@ -1666,27 +1613,27 @@ void GameGl::renderTerrainScene()
 
 	glUseProgram(mTerrainProgram);
 	uploadAtmosphereUniforms(mTerrainProgram);
-	const int terrainResLoc = getUniformLocationCached(mTerrainProgram, "u_terrain_resolution");
+	const int terrainResLoc = glGetUniformLocation(mTerrainProgram, "u_terrain_resolution");
 	if (terrainResLoc >= 0) glUniform1i(terrainResLoc, 512);
-	const int viewProjLoc = getUniformLocationCached(mTerrainProgram, "u_view_proj");
+	const int viewProjLoc = glGetUniformLocation(mTerrainProgram, "u_view_proj");
 	if (viewProjLoc >= 0) glUniformMatrix4fv(viewProjLoc, 1, GL_FALSE, glm::value_ptr(viewProjMatrix));
-	const int shadowViewProjLoc = getUniformLocationCached(mTerrainProgram, "u_shadow_view_proj");
+	const int shadowViewProjLoc = glGetUniformLocation(mTerrainProgram, "u_shadow_view_proj");
 	if (shadowViewProjLoc >= 0) glUniformMatrix4fv(shadowViewProjLoc, 1, GL_FALSE, mShadowViewProj);
-	const int camPosLoc = getUniformLocationCached(mTerrainProgram, "u_camera_world_pos");
+	const int camPosLoc = glGetUniformLocation(mTerrainProgram, "u_camera_world_pos");
 	if (camPosLoc >= 0) glUniform3f(camPosLoc, cameraWorld.x, cameraWorld.y, cameraWorld.z);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, mTerrainHeightmapTex);
-	const int heightmapLoc = getUniformLocationCached(mTerrainProgram, "u_heightmap_tex");
+	const int heightmapLoc = glGetUniformLocation(mTerrainProgram, "u_heightmap_tex");
 	if (heightmapLoc >= 0) glUniform1i(heightmapLoc, 0);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, mTransmittanceTex);
-	const int transLoc = getUniformLocationCached(mTerrainProgram, "u_transmittance_lut");
+	const int transLoc = glGetUniformLocation(mTerrainProgram, "u_transmittance_lut");
 	if (transLoc >= 0) glUniform1i(transLoc, 1);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, mShadowMapsEnabled ? mShadowDepthTex : mShadowFallbackTex);
-	const int shadowTexLoc = getUniformLocationCached(mTerrainProgram, "u_shadowmap_tex");
+	const int shadowTexLoc = glGetUniformLocation(mTerrainProgram, "u_shadowmap_tex");
 	if (shadowTexLoc >= 0) glUniform1i(shadowTexLoc, 2);
 
 	glBindVertexArray(mFullscreenVao);
@@ -1716,45 +1663,45 @@ void GameGl::renderPresent()
 
 	glUseProgram(mRaymarchProgram);
 	uploadAtmosphereUniforms(mRaymarchProgram);
-	const int aspectLoc = getUniformLocationCached(mRaymarchProgram, "u_aspect");
+	const int aspectLoc = glGetUniformLocation(mRaymarchProgram, "u_aspect");
 	if (aspectLoc >= 0) glUniform1f(aspectLoc, static_cast<float>(mBackbufferWidth) / static_cast<float>(mBackbufferHeight));
-	const int fovLoc = getUniformLocationCached(mRaymarchProgram, "u_fov_y_degrees");
+	const int fovLoc = glGetUniformLocation(mRaymarchProgram, "u_fov_y_degrees");
 	if (fovLoc >= 0) glUniform1f(fovLoc, kMainCameraFovYDegrees);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, mTransmittanceTex);
-	const int transLoc = getUniformLocationCached(mRaymarchProgram, "u_transmittance_lut");
+	const int transLoc = glGetUniformLocation(mRaymarchProgram, "u_transmittance_lut");
 	if (transLoc >= 0) glUniform1i(transLoc, 0);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, mSkyViewTex);
-	const int skyLoc = getUniformLocationCached(mRaymarchProgram, "u_skyview_lut");
+	const int skyLoc = glGetUniformLocation(mRaymarchProgram, "u_skyview_lut");
 	if (skyLoc >= 0) glUniform1i(skyLoc, 1);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, mMultiScatteringTex);
-	const int multiLoc = getUniformLocationCached(mRaymarchProgram, "u_multiscattering_lut");
+	const int multiLoc = glGetUniformLocation(mRaymarchProgram, "u_multiscattering_lut");
 	if (multiLoc >= 0) glUniform1i(multiLoc, 2);
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_3D, mAerialPerspectiveTex);
-	const int apLoc = getUniformLocationCached(mRaymarchProgram, "u_aerial_perspective_volume");
+	const int apLoc = glGetUniformLocation(mRaymarchProgram, "u_aerial_perspective_volume");
 	if (apLoc >= 0) glUniform1i(apLoc, 3);
 	glActiveTexture(GL_TEXTURE4);
 	glBindTexture(GL_TEXTURE_2D, mSceneHdrTex);
-	const int sceneLoc = getUniformLocationCached(mRaymarchProgram, "u_scene_color");
+	const int sceneLoc = glGetUniformLocation(mRaymarchProgram, "u_scene_color");
 	if (sceneLoc >= 0) glUniform1i(sceneLoc, 4);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_2D, mSceneLinearDepthTex);
-	const int linearDepthLoc = getUniformLocationCached(mRaymarchProgram, "u_scene_linear_depth");
+	const int linearDepthLoc = glGetUniformLocation(mRaymarchProgram, "u_scene_linear_depth");
 	if (linearDepthLoc >= 0) glUniform1i(linearDepthLoc, 5);
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, mShadowMapsEnabled ? mShadowDepthTex : mShadowFallbackTex);
-	const int shadowTexLoc = getUniformLocationCached(mRaymarchProgram, "u_shadowmap_tex");
+	const int shadowTexLoc = glGetUniformLocation(mRaymarchProgram, "u_shadowmap_tex");
 	if (shadowTexLoc >= 0) glUniform1i(shadowTexLoc, 6);
-	const int shadowViewProjLoc = getUniformLocationCached(mRaymarchProgram, "u_shadow_view_proj");
+	const int shadowViewProjLoc = glGetUniformLocation(mRaymarchProgram, "u_shadow_view_proj");
 	if (shadowViewProjLoc >= 0) glUniformMatrix4fv(shadowViewProjLoc, 1, GL_FALSE, mShadowViewProj);
-	const int fastSkyLoc = getUniformLocationCached(mRaymarchProgram, "u_fast_sky");
+	const int fastSkyLoc = glGetUniformLocation(mRaymarchProgram, "u_fast_sky");
 	if (fastSkyLoc >= 0) glUniform1i(fastSkyLoc, mFastSky ? 1 : 0);
-	const int fastApLoc = getUniformLocationCached(mRaymarchProgram, "u_fast_aerial_perspective");
+	const int fastApLoc = glGetUniformLocation(mRaymarchProgram, "u_fast_aerial_perspective");
 	if (fastApLoc >= 0) glUniform1i(fastApLoc, mFastAerialPerspective ? 1 : 0);
-	const int apDepthLoc = getUniformLocationCached(mRaymarchProgram, "u_ap_debug_depth_km");
+	const int apDepthLoc = glGetUniformLocation(mRaymarchProgram, "u_ap_debug_depth_km");
 	if (apDepthLoc >= 0) glUniform1f(apDepthLoc, mAerialPerspectiveDebugDepthKm);
 	glBindVertexArray(mFullscreenVao);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1786,18 +1733,8 @@ void GameGl::renderPresent()
 	glUseProgram(mPostProcessProgram);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, mFinalHdrTex);
-	const int hdrLoc = getUniformLocationCached(mPostProcessProgram, "u_hdr_tex");
+	const int hdrLoc = glGetUniformLocation(mPostProcessProgram, "u_hdr_tex");
 	if (hdrLoc >= 0) glUniform1i(hdrLoc, 0);
-	const int tonemapEnabledLoc = getUniformLocationCached(mPostProcessProgram, "u_enable_tonemap");
-	if (tonemapEnabledLoc >= 0) glUniform1i(tonemapEnabledLoc, mPostTonemapEnabled ? 1 : 0);
-	const int tonemapModeLoc = getUniformLocationCached(mPostProcessProgram, "u_tonemap_mode");
-	if (tonemapModeLoc >= 0) glUniform1i(tonemapModeLoc, mPostTonemapMode);
-	const int exposureLoc = getUniformLocationCached(mPostProcessProgram, "u_exposure");
-	if (exposureLoc >= 0) glUniform1f(exposureLoc, mPostExposure);
-	const int gammaEnabledLoc = getUniformLocationCached(mPostProcessProgram, "u_enable_gamma");
-	if (gammaEnabledLoc >= 0) glUniform1i(gammaEnabledLoc, mPostGammaEnabled ? 1 : 0);
-	const int gammaLoc = getUniformLocationCached(mPostProcessProgram, "u_output_gamma");
-	if (gammaLoc >= 0) glUniform1f(gammaLoc, mPostOutputGamma);
 	glBindVertexArray(mFullscreenVao);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 
@@ -1837,11 +1774,8 @@ void GameGl::render()
 		renderAerialPerspectiveVolume();
 		mAerialPerspectiveDirty = false;
 	}
-	if (mLutPreviewUpdatesEnabled)
-	{
-		copyAerialPerspectivePreviewSlice();
-		updateLutPreviewTextures();
-	}
+	copyAerialPerspectivePreviewSlice();
+	updateLutPreviewTextures();
 	renderTerrainScene();
 	renderPresent();
 }

@@ -47,11 +47,6 @@ namespace
 	{
 		state.uiCamHeight = gameGl.getCameraHeight();
 		state.uiCamForward = gameGl.getCameraForward();
-		state.uiPostTonemapEnabled = gameGl.getPostTonemapEnabled();
-		state.uiTonemapMode = gameGl.getPostTonemapMode();
-		state.uiPostExposure = gameGl.getPostExposure();
-		state.uiPostGammaEnabled = gameGl.getPostGammaEnabled();
-		state.uiPostOutputGamma = gameGl.getPostOutputGamma();
 		state.uiIllumScale = gameGl.getSunIlluminanceScale();
 		state.uiSunYaw = gameGl.getSunYaw();
 		state.uiSunPitch = gameGl.getSunPitch();
@@ -199,11 +194,6 @@ namespace
 		}
 
 		gameGl.setSunIlluminanceScale(state.uiIllumScale);
-		gameGl.setPostTonemapEnabled(state.uiPostTonemapEnabled);
-		gameGl.setPostTonemapMode(state.uiTonemapMode);
-		gameGl.setPostExposure(state.uiPostExposure);
-		gameGl.setPostGammaEnabled(state.uiPostGammaEnabled);
-		gameGl.setPostOutputGamma(state.uiPostOutputGamma);
 		gameGl.setSunYaw(state.uiSunYaw);
 		gameGl.setSunPitch(state.uiSunPitch);
 		gameGl.setRayMarchMinSpp(state.uiMinSpp);
@@ -218,7 +208,6 @@ namespace
 		gameGl.setAerialPerspectivePreviewSlice(state.apPreviewSlice);
 		gameGl.setMultiScatteringPreviewExposure(state.msPreviewExposure);
 		gameGl.setAerialPerspectivePreviewExposure(state.apPreviewExposure);
-		gameGl.setLutPreviewUpdatesEnabled(state.uiLutPreviewVisible);
 		if (state.applyAtmosphereUi)
 		{
 			GlAtmosphereInfo atmosphere = gameGl.getAtmosphereInfo();

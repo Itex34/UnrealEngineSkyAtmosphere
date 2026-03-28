@@ -2,9 +2,6 @@
 
 #pragma once
 
-#include <string>
-#include <unordered_map>
-
 struct GlVec3
 {
 	float x, y, z;
@@ -53,11 +50,6 @@ public:
 	void resize(int width, int height);
 	void render();
 	void setAerialPerspectiveDebugDepthKm(float depthKm) { mAerialPerspectiveDebugDepthKm = depthKm; }
-	void setPostTonemapEnabled(bool enabled) { mPostTonemapEnabled = enabled; }
-	void setPostTonemapMode(int mode);
-	void setPostExposure(float exposure);
-	void setPostGammaEnabled(bool enabled) { mPostGammaEnabled = enabled; }
-	void setPostOutputGamma(float gamma);
 	void setCameraHeight(float value);
 	void setCameraForward(float value);
 	void setCameraOffset(const GlVec3& value);
@@ -75,10 +67,6 @@ public:
 		if (mShadowMapsEnabled != enabled)
 		{
 			mShadowMapsEnabled = enabled;
-			if (enabled)
-			{
-				mShadowMapDirty = true;
-			}
 			markSkyAndApDirty();
 		}
 	}
@@ -86,14 +74,12 @@ public:
 	void setAerialPerspectivePreviewSlice(int value);
 	void setMultiScatteringPreviewExposure(float value) { mMultiScatteringPreviewExposure = value; }
 	void setAerialPerspectivePreviewExposure(float value) { mAerialPerspectivePreviewExposure = value; }
-	void setLutPreviewUpdatesEnabled(bool enabled) { mLutPreviewUpdatesEnabled = enabled; }
 	void setMultipleScatteringFactor(float value);
 	void setRenderTerrain(bool enabled)
 	{
 		if (mRenderTerrain != enabled)
 		{
 			mRenderTerrain = enabled;
-			mShadowMapDirty = true;
 			markSkyAndApDirty();
 		}
 	}
@@ -102,11 +88,6 @@ public:
 	float getCameraHeight() const { return mCameraHeight; }
 	float getCameraForward() const { return mCameraForward; }
 	GlVec3 getCameraOffset() const { return mCameraOffset; }
-	bool getPostTonemapEnabled() const { return mPostTonemapEnabled; }
-	int getPostTonemapMode() const { return mPostTonemapMode; }
-	float getPostExposure() const { return mPostExposure; }
-	bool getPostGammaEnabled() const { return mPostGammaEnabled; }
-	float getPostOutputGamma() const { return mPostOutputGamma; }
 	float getViewYaw() const { return mViewYaw; }
 	float getViewPitch() const { return mViewPitch; }
 	GlVec3 getViewDir() const { return mViewDir; }
@@ -193,8 +174,6 @@ private:
 	void endGpuPassTimer(GpuPassTimer& timer);
 	void markLutsDirty();
 	void markSkyAndApDirty();
-	int getUniformLocationCached(unsigned int program, const char* name);
-	void clearUniformLocationCache();
 
 	unsigned int loadAndCompileShader(unsigned int type, const char* path);
 	unsigned int linkProgram(unsigned int vs, unsigned int fs, const char* debugName);
@@ -205,7 +184,6 @@ private:
 	bool mLutDirty = true;
 	bool mSkyViewDirty = true;
 	bool mAerialPerspectiveDirty = true;
-	bool mShadowMapDirty = true;
 	int mBackbufferWidth = 1280;
 	int mBackbufferHeight = 720;
 
@@ -214,11 +192,6 @@ private:
 	float mMultipleScatteringFactor = 1.0f;
 	float mCameraHeight = 0.5f;
 	float mCameraForward = -1.0f;
-	bool mPostTonemapEnabled = true;
-	int mPostTonemapMode = 0;
-	float mPostExposure = 10.0f;
-	bool mPostGammaEnabled = true;
-	float mPostOutputGamma = 2.2f;
 	float mViewYaw = 0.0f;
 	float mViewPitch = 0.0f;
 	float mSunIlluminanceScale = 1.0f;
@@ -272,7 +245,6 @@ private:
 	float mAerialPerspectiveDebugMin = 0.0f;
 	float mAerialPerspectiveDebugMax = 0.0f;
 	bool mAerialPerspectiveStatsValid = false;
-	bool mLutPreviewUpdatesEnabled = true;
 	int mAerialPerspectivePreviewSlice = 0;
 	float mMultiScatteringPreviewExposure = 32.0f;
 	float mAerialPerspectivePreviewExposure = 16.0f;
@@ -291,5 +263,4 @@ private:
 	GpuPassTimer mAerialPerspectivePassTimer = {};
 	GpuPassTimer mTerrainPassTimer = {};
 	GpuPassTimer mPresentPassTimer = {};
-	std::unordered_map<unsigned int, std::unordered_map<std::string, int>> mUniformLocationCache;
 };

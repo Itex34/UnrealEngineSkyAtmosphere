@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(HillaireSkyAtmosphereOpenGL LANGUAGES C CXX)
+project(UnrealEngineSkyAtmosphereOpenGL LANGUAGES C CXX)
 
 option(SKYATMOS_FETCH_DEPS "Fetch GLFW and GLM via FetchContent when not found locally." ON)
 
@@ -73,7 +73,7 @@ set(SKYATMOS_SHADER_SOURCES
 	Resources/glsl/postprocess.frag
 )
 
-add_executable(HillaireSkyAtmosphereOpenGL
+add_executable(UnrealEngineSkyAtmosphere
 	Application/main.cpp
 	Application/GameGl.cpp
 	Application/GlfwAppLoop.cpp
@@ -89,45 +89,45 @@ add_executable(HillaireSkyAtmosphereOpenGL
 	${SKYATMOS_SHADER_SOURCES}
 )
 
-target_include_directories(HillaireSkyAtmosphereOpenGL PRIVATE
+target_include_directories(UnrealEngineSkyAtmosphere PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_CURRENT_SOURCE_DIR}/imgui
 	${CMAKE_CURRENT_SOURCE_DIR}/imgui/examples
 	${CMAKE_CURRENT_SOURCE_DIR}/imgui/examples/libs/gl3w
 )
 
-target_compile_definitions(HillaireSkyAtmosphereOpenGL PRIVATE
+target_compile_definitions(UnrealEngineSkyAtmosphere PRIVATE
 	IMGUI_IMPL_OPENGL_LOADER_GL3W
 	IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 )
 
 if(WIN32)
-	target_compile_definitions(HillaireSkyAtmosphereOpenGL PRIVATE NOMINMAX)
+	target_compile_definitions(UnrealEngineSkyAtmosphere PRIVATE NOMINMAX)
 endif()
 
 if(MSVC)
-	target_compile_options(HillaireSkyAtmosphereOpenGL PRIVATE /W4 /EHsc)
+	target_compile_options(UnrealEngineSkyAtmosphere PRIVATE /W4 /EHsc)
 else()
-	target_compile_options(HillaireSkyAtmosphereOpenGL PRIVATE -Wall -Wextra -Wpedantic)
+	target_compile_options(UnrealEngineSkyAtmosphere PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-target_link_libraries(HillaireSkyAtmosphereOpenGL PRIVATE
+target_link_libraries(UnrealEngineSkyAtmosphere PRIVATE
 	${SKYATMOS_GLFW_TARGET}
 	${SKYATMOS_GLM_TARGET}
 	OpenGL::GL
 )
 
 # Keep runtime assets next to the executable so working directory does not depend on IDE settings.
-add_custom_command(TARGET HillaireSkyAtmosphereOpenGL POST_BUILD
+add_custom_command(TARGET UnrealEngineSkyAtmosphere POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_directory
 		${CMAKE_SOURCE_DIR}/Resources
-		$<TARGET_FILE_DIR:HillaireSkyAtmosphereOpenGL>/Resources
+		$<TARGET_FILE_DIR:UnrealEngineSkyAtmosphere>/Resources
 )
 
 source_group("Shaders" FILES ${SKYATMOS_SHADER_SOURCES})
 
-set_target_properties(HillaireSkyAtmosphereOpenGL PROPERTIES
+set_target_properties(UnrealEngineSkyAtmosphere PROPERTIES
 	VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT HillaireSkyAtmosphereOpenGL)
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT UnrealEngineSkyAtmosphere)
